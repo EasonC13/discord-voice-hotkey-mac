@@ -6,14 +6,9 @@ let package = Package(
     platforms: [.macOS(.v13)],
     products: [
         .library(name: "DiscordVoiceHotkeyCore", targets: ["DiscordVoiceHotkeyCore"]),
-        .executable(name: "DiscordVoiceHotkey", targets: ["DiscordVoiceHotkey"]),
     ],
     targets: [
         .target(name: "DiscordVoiceHotkeyCore"),
-        .executableTarget(
-            name: "DiscordVoiceHotkey",
-            dependencies: ["DiscordVoiceHotkeyCore"]
-        ),
         .testTarget(
             name: "DiscordVoiceHotkeyCoreTests",
             dependencies: ["DiscordVoiceHotkeyCore"]
