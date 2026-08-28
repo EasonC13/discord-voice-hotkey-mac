@@ -33,5 +33,5 @@ hdiutil create \
   "$DMG"
 
 hdiutil verify "$DMG"
-shasum -a 256 "$DMG" > "$DMG.sha256"
+"$ROOT/scripts/write-checksum.sh" "$DMG"
 printf 'Built %s\n' "$DMG"

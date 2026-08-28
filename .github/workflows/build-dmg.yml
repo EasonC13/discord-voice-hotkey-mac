@@ -37,6 +37,11 @@ jobs:
           bash -n install.command
           bash -n src/record.sh
           bash -n scripts/build-dmg.sh
+          bash -n scripts/write-checksum.sh
+          bash -n tests/test_portable_checksum.sh
+
+      - name: Test portable checksum
+        run: tests/test_portable_checksum.sh
 
       - name: Build and verify DMG
         run: scripts/build-dmg.sh "${GITHUB_REF_NAME}"
