@@ -104,6 +104,17 @@ final class RecordingSessionMachineTests: XCTestCase {
             "restoreNow:clipboard-1",
         ])
     }
+
+    func testShutdownClearsActiveAndCachedRecordings() throws {
+        let runtime = MockRuntime()
+        let machine = RecordingSessionMachine(runtime: runtime)
+
+        try machine.toggle(now: Date(timeIntervalSince1970: 100))
+        machine.shutdown()
+
+        XCTAssertFalse(machine.isRecording)
+        XCTAssertEqual(runtime.events, ["capture", "start", "shutdown"])
+    }
 }
 
 private enum MockFailure: Error {
@@ -144,6 +155,10 @@ private final class MockRuntime: RecordingSessionRuntime {
 
     func deleteRecording(at url: URL) {
         events.append("delete:\(url.lastPathComponent)")
+    }
+
+    func shutdownRecordingStorage() {
+        events.append("shutdown")
     }
 
     func restoreClipboardNow(token: String) {
