@@ -50,14 +50,16 @@ final class RecordingSessionMachineTests: XCTestCase {
         ])
     }
 
-    func testMissingOutputRestoresClipboardWithoutPasting() throws {
+    func testMissingOutputThrowsAndRestoresClipboardWithoutPasting() throws {
         let runtime = MockRuntime()
         runtime.outputURL = nil
         let machine = RecordingSessionMachine(runtime: runtime)
         let started = Date(timeIntervalSince1970: 100)
 
         try machine.toggle(now: started)
-        try machine.toggle(now: started.addingTimeInterval(2))
+        XCTAssertThrowsError(try machine.toggle(now: started.addingTimeInterval(2))) { error in
+            XCTAssertEqual(error as? RecordingSessionError, .noUsableAudio)
+        }
 
         XCTAssertFalse(machine.isRecording)
         XCTAssertEqual(runtime.events, [
@@ -67,11 +69,51 @@ final class RecordingSessionMachineTests: XCTestCase {
             "restoreNow:clipboard-1",
         ])
     }
+
+    func testNewRecordingIsBlockedDuringClipboardRestorationWindow() throws {
+        let runtime = MockRuntime()
+        let machine = RecordingSessionMachine(runtime: runtime)
+        let started = Date(timeIntervalSince1970: 100)
+
+        try machine.toggle(now: started)
+        try machine.toggle(now: started.addingTimeInterval(2))
+        let eventsAfterPaste = runtime.events
+
+        XCTAssertThrowsError(try machine.toggle(now: started.addingTimeInterval(2.2))) { error in
+            XCTAssertEqual(error as? RecordingSessionError, .clipboardRestorationPending)
+        }
+        XCTAssertEqual(runtime.events, eventsAfterPaste)
+    }
+
+    func testPasteFailureDeletesOutputBeforeRestoringClipboard() throws {
+        let runtime = MockRuntime()
+        runtime.pasteError = MockFailure.paste
+        let machine = RecordingSessionMachine(runtime: runtime)
+        let started = Date(timeIntervalSince1970: 100)
+
+        try machine.toggle(now: started)
+        XCTAssertThrowsError(try machine.toggle(now: started.addingTimeInterval(2)))
+
+        XCTAssertEqual(runtime.events, [
+            "capture",
+            "start",
+            "stop:false",
+            "activate:42",
+            "paste:voice.m4a",
+            "delete:voice.m4a",
+            "restoreNow:clipboard-1",
+        ])
+    }
+}
+
+private enum MockFailure: Error {
+    case paste
 }
 
 private final class MockRuntime: RecordingSessionRuntime {
     var events: [String] = []
     var outputURL: URL? = URL(fileURLWithPath: "/tmp/voice.m4a")
+    var pasteError: Error?
 
     func captureContext(at date: Date) -> RecordingContext {
         events.append("capture")
@@ -97,6 +139,11 @@ private final class MockRuntime: RecordingSessionRuntime {
 
     func pasteAudioFile(_ url: URL) throws {
         events.append("paste:\(url.lastPathComponent)")
+        if let pasteError { throw pasteError }
+    }
+
+    func deleteRecording(at url: URL) {
+        events.append("delete:\(url.lastPathComponent)")
     }
 
     func restoreClipboardNow(token: String) {
