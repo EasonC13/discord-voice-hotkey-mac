@@ -22,7 +22,7 @@ BIN_DIR="$(swift build --package-path "$ROOT" -c release --show-bin-path --arch 
 cp "$BIN_DIR/DiscordVoiceHotkey" "$APP/Contents/MacOS/DiscordVoiceHotkey"
 cp "$ROOT/Resources/Info.plist" "$APP/Contents/Info.plist"
 chmod +x "$APP/Contents/MacOS/DiscordVoiceHotkey"
-lipo -verify_arch arm64 x86_64 "$APP/Contents/MacOS/DiscordVoiceHotkey"
+lipo "$APP/Contents/MacOS/DiscordVoiceHotkey" -verify_arch arm64 x86_64
 
 plutil -lint "$APP/Contents/Info.plist"
 codesign --force --deep --sign - "$APP"
