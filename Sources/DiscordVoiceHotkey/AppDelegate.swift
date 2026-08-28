@@ -129,7 +129,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func applyHotKey(_ configuration: HotKeyConfiguration) throws {
-        if configuration == hotKeyConfiguration { return }
+        guard HotKeyRegistrationPolicy.shouldAttemptRegistration(
+            configurationChanged: configuration != hotKeyConfiguration,
+            hasActiveRegistration: hotKey != nil
+        ) else { return }
         let replacement = try GlobalHotKey(configuration: configuration) { [weak self] in
             self?.toggleRecording()
         }

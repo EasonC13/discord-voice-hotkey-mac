@@ -55,7 +55,7 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
             name: NSWorkspace.didActivateApplicationNotification,
             object: nil
         )
-        removeStaleRecordings()
+        removeAllRecordings()
     }
 
     deinit {
@@ -135,8 +135,12 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
             return nil
         }
 
-        guard let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize,
-              size > 512 else {
+        let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+        let frameCount = (try? AVAudioFile(forReading: url).length) ?? 0
+        guard RecordingOutputPolicy.isUsable(
+            fileSize: size,
+            audioFrameCount: frameCount
+        ) else {
             try? FileManager.default.removeItem(at: url)
             return nil
         }
@@ -205,13 +209,14 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
     }
 
     func restoreClipboardNow(token: String) {
-        restoreClipboard(token: token, onlyIfChangeCountIs: nil)
+        restoreClipboard(token: token, onlyIfChangeCountIs: pasteChangeCounts[token])
     }
 
-    func restoreClipboardLater(token: String) {
+    func restoreClipboardLater(token: String, completion: @escaping () -> Void) {
         let expectedChangeCount = pasteChangeCounts[token]
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
             self?.restoreClipboard(token: token, onlyIfChangeCountIs: expectedChangeCount)
+            completion()
         }
     }
 
@@ -259,7 +264,10 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
         if activeClipboardToken == token { activeClipboardToken = nil }
 
         let pasteboard = NSPasteboard.general
-        let safeChangeCount = expected ?? snapshot.originalChangeCount
+        let safeChangeCount = ClipboardRestorePolicy.expectedChangeCount(
+            originalChangeCount: snapshot.originalChangeCount,
+            applicationPasteChangeCount: expected
+        )
         if pasteboard.changeCount != safeChangeCount {
             return
         }
@@ -290,22 +298,6 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
         guard let application,
               application.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return }
         lastExternalApplicationPID = application.processIdentifier
-    }
-
-    private func removeStaleRecordings() {
-        guard let files = try? FileManager.default.contentsOfDirectory(
-            at: recordingsDirectory,
-            includingPropertiesForKeys: [.contentModificationDateKey]
-        ) else { return }
-
-        let cutoff = Date().addingTimeInterval(-1_800)
-        for file in files {
-            let modified = try? file.resourceValues(forKeys: [.contentModificationDateKey])
-                .contentModificationDate
-            if let modified, modified < cutoff {
-                try? FileManager.default.removeItem(at: file)
-            }
-        }
     }
 
     private func removeAllRecordings() {

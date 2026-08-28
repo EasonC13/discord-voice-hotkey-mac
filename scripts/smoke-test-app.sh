@@ -25,6 +25,11 @@ if [[ -z "$DMG" || ! -f "$DMG" ]]; then
   exit 1
 fi
 
+if pgrep -x "$PROCESS_NAME" >/dev/null 2>&1; then
+  printf '%s\n' "A pre-existing $PROCESS_NAME process would invalidate the smoke test." >&2
+  exit 1
+fi
+
 hdiutil attach -nobrowse -readonly -mountpoint "$MOUNT_POINT" "$DMG" >/dev/null
 APP="$MOUNT_POINT/Discord Voice Hotkey.app"
 
@@ -51,6 +56,13 @@ done
 
 if [[ -z "$PID" ]]; then
   printf '%s\n' "The installed menu bar app did not remain running." >&2
+  exit 1
+fi
+
+COMMAND="$(ps -p "$PID" -o command=)"
+EXPECTED_EXECUTABLE="$INSTALLED_APP/Contents/MacOS/$PROCESS_NAME"
+if [[ "$COMMAND" != "$EXPECTED_EXECUTABLE"* ]]; then
+  printf 'Observed PID %s belongs to unexpected command: %s\n' "$PID" "$COMMAND" >&2
   exit 1
 fi
 

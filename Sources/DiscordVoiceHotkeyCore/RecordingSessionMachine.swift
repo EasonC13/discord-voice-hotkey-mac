@@ -39,13 +39,13 @@ public protocol RecordingSessionRuntime: AnyObject {
     func deleteRecording(at url: URL)
     func shutdownRecordingStorage()
     func restoreClipboardNow(token: String)
-    func restoreClipboardLater(token: String)
+    func restoreClipboardLater(token: String, completion: @escaping () -> Void)
 }
 
 public final class RecordingSessionMachine {
     private let runtime: RecordingSessionRuntime
     private var context: RecordingContext?
-    private var clipboardRestoreDeadline: Date?
+    private var isRestoringClipboard = false
 
     public var isRecording: Bool { context != nil }
 
@@ -55,16 +55,15 @@ public final class RecordingSessionMachine {
 
     public func shutdown() {
         context = nil
-        clipboardRestoreDeadline = nil
+        isRestoringClipboard = false
         runtime.shutdownRecordingStorage()
     }
 
     public func toggle(now: Date = Date()) throws {
         guard let activeContext = context else {
-            if let deadline = clipboardRestoreDeadline, now < deadline {
+            if isRestoringClipboard {
                 throw RecordingSessionError.clipboardRestorationPending
             }
-            clipboardRestoreDeadline = nil
             let newContext = runtime.captureContext(at: now)
             do {
                 try runtime.startRecording()
@@ -93,8 +92,10 @@ public final class RecordingSessionMachine {
         runtime.activateApplication(pid: activeContext.frontmostApplicationPID)
         do {
             try runtime.pasteAudioFile(outputURL)
-            runtime.restoreClipboardLater(token: activeContext.clipboardToken)
-            clipboardRestoreDeadline = now.addingTimeInterval(1.5)
+            isRestoringClipboard = true
+            runtime.restoreClipboardLater(token: activeContext.clipboardToken) { [weak self] in
+                self?.isRestoringClipboard = false
+            }
         } catch {
             runtime.deleteRecording(at: outputURL)
             runtime.restoreClipboardNow(token: activeContext.clipboardToken)
