@@ -2,7 +2,7 @@ name: Build macOS DMG
 
 on:
   push:
-    branches: [main]
+    branches: [main, "feat/**"]
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
@@ -42,6 +42,9 @@ jobs:
 
       - name: Test portable checksum
         run: tests/test_portable_checksum.sh
+
+      - name: Run native Swift tests
+        run: swift test
 
       - name: Build and verify DMG
         run: scripts/build-dmg.sh "${GITHUB_REF_NAME}"
