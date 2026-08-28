@@ -158,6 +158,14 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
 
         Thread.sleep(forTimeInterval: 0.2)
         let pasteboard = NSPasteboard.general
+        if let token = activeClipboardToken,
+           let snapshot = snapshots[token],
+           ClipboardSnapshotPolicy.shouldRefreshSnapshot(
+               originalChangeCount: snapshot.originalChangeCount,
+               currentChangeCount: pasteboard.changeCount
+           ) {
+            snapshots[token] = captureClipboard()
+        }
         pasteboard.clearContents()
         if let activeClipboardToken {
             pasteChangeCounts[activeClipboardToken] = pasteboard.changeCount
