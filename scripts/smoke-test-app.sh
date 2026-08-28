@@ -60,7 +60,8 @@ if [[ -z "$PID" ]]; then
 fi
 
 COMMAND="$(ps -p "$PID" -o command=)"
-EXPECTED_EXECUTABLE="$INSTALLED_APP/Contents/MacOS/$PROCESS_NAME"
+EXECUTABLE_DIR="$(cd "$INSTALLED_APP/Contents/MacOS" && pwd -P)"
+EXPECTED_EXECUTABLE="$EXECUTABLE_DIR/$PROCESS_NAME"
 if [[ "$COMMAND" != "$EXPECTED_EXECUTABLE"* ]]; then
   printf 'Observed PID %s belongs to unexpected command: %s\n' "$PID" "$COMMAND" >&2
   exit 1
