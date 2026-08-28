@@ -1,0 +1,61 @@
+name: Build macOS DMG
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  test-and-build:
+    runs-on: macos-14
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install test dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Check Lua syntax
+        run: npm run check:lua
+
+      - name: Check shell syntax
+        run: |
+          bash -n install.command
+          bash -n src/record.sh
+          bash -n scripts/build-dmg.sh
+
+      - name: Build and verify DMG
+        run: scripts/build-dmg.sh "${GITHUB_REF_NAME}"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Discord-Voice-Hotkey-${{ github.ref_name }}
+          path: |
+            dist/*.dmg
+            dist/*.sha256
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            dist/*.dmg dist/*.sha256 \
+            --title "Discord Voice Hotkey $GITHUB_REF_NAME" \
+            --generate-notes
