@@ -29,6 +29,7 @@ APP="$MOUNT_POINT/Discord Voice Hotkey.app"
 [[ -d "$APP" ]]
 [[ -L "$MOUNT_POINT/Applications" ]]
 [[ "$(readlink "$MOUNT_POINT/Applications")" == "/Applications" ]]
+[[ -f "$APP/Contents/Resources/AppIcon.icns" ]]
 codesign --verify --deep --strict --verbose=2 "$APP"
 open "$APP"
 

@@ -10,6 +10,8 @@
     <string>DiscordVoiceHotkey</string>
     <key>CFBundleIdentifier</key>
     <string>com.easonc13.discord-voice-hotkey</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
