@@ -17,25 +17,8 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: "22"
-          cache: npm
-
-      - name: Install test dependencies
-        run: npm ci
-
-      - name: Run unit tests
-        run: npm test
-
-      - name: Check Lua syntax
-        run: npm run check:lua
-
       - name: Check shell syntax
         run: |
-          bash -n install.command
-          bash -n src/record.sh
           bash -n scripts/build-dmg.sh
           bash -n scripts/smoke-test-app.sh
           bash -n scripts/write-checksum.sh

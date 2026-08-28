@@ -2,72 +2,78 @@
 
 [![Build macOS DMG](https://github.com/EasonC13/discord-voice-hotkey-mac/actions/workflows/build-dmg.yml/badge.svg)](https://github.com/EasonC13/discord-voice-hotkey-mac/actions/workflows/build-dmg.yml)
 
-Press one global shortcut to start recording and press it again to paste an MP3 into Discord. Your previous clipboard contents are restored automatically.
+A native macOS menu bar app for recording and pasting audio attachments into Discord or any other app that accepts pasted files.
 
 ## Download
 
 Download the latest DMG from [GitHub Releases](https://github.com/EasonC13/discord-voice-hotkey-mac/releases/latest).
 
-## Install from the DMG
+## Install
 
 1. Open `Discord-Voice-Hotkey-*.dmg`.
-2. Open **Install Discord Voice Hotkey.command**.
-   - The release is open source but not Apple-notarized. If macOS blocks it, right-click it and choose **Open**.
-3. Grant Hammerspoon **Accessibility** permission.
-4. Press `Control + Option + R` once and grant microphone permission.
-5. If necessary, click the Hammerspoon menu-bar icon and choose **Reload Config**.
+2. Drag **Discord Voice Hotkey.app** into the **Applications** shortcut.
+3. Open the app from Applications.
+   - Releases are ad-hoc signed but not Apple-notarized. On first launch, you may need to right-click the app and choose **Open**.
+4. Allow **Microphone** and **Accessibility** access when macOS asks.
 
-The installer uses Homebrew to install `ffmpeg` and Hammerspoon if they are missing. It backs up an existing `~/.hammerspoon/init.lua` before appending one clearly marked loader block.
+No Homebrew, Hammerspoon, FFmpeg, or background terminal process is required.
 
 ## Use
 
-1. Put the cursor in a Discord message box.
-2. Press `Control + Option + R` to start recording.
-3. Press it again to stop.
-4. The MP3 is pasted as an attachment, but **not sent**.
-5. The clipboard contents from before recording are restored approximately 1.5 seconds later.
+1. Keep the app running from the microphone icon in the macOS menu bar.
+2. Put the cursor in a Discord message box.
+3. Press `Control + Option + R` once to start recording.
+4. Press it again to stop and paste the audio attachment.
+5. Review the attachment and press Return yourself when ready.
 
-If you copy something new during that 1.5-second window, the tool preserves the newer clipboard instead of overwriting it.
+The app records native AAC audio in an `.m4a` container. Discord can play and upload this format directly.
 
-Recordings shorter than 0.5 seconds are cancelled. Temporary MP3 files are removed after 30 minutes.
+### Custom shortcut
+
+Open the menu bar icon and choose **Change Shortcut…**, then press any combination containing at least one modifier key. The shortcut is applied immediately and saved across app restarts.
+
+### Clipboard behavior
+
+The app snapshots the clipboard before recording. After pasting the audio file, it restores the previous clipboard approximately 1.5 seconds later. If you copy something new during that window, the newer clipboard is preserved instead of being overwritten.
+
+Recordings shorter than 0.5 seconds are cancelled. Temporary recordings are removed after 30 minutes.
 
 ## Permissions
 
-- **Accessibility**: required to issue `Command + V` in Discord.
-- **Microphone**: required to record through FFmpeg/AVFoundation.
+- **Microphone**: records audio through AVFoundation.
+- **Accessibility**: sends `Command + V` to the app that was active when recording began.
 
-Settings location: **System Settings → Privacy & Security**.
+The menu bar menu shows the current status of both permissions and links directly to the relevant System Settings pages.
 
-## Change the shortcut
+## System requirements
 
-Edit `~/.hammerspoon/discord-voice-hotkey/voice_hotkey.lua` and find:
-
-```lua
-hs.hotkey.bind({ "ctrl", "alt" }, "R", function()
-```
-
-Then reload the Hammerspoon configuration.
+- macOS 13 Ventura or newer
+- Apple Silicon or Intel Mac supported by the GitHub macOS universal build environment
 
 ## Build locally
 
-DMG creation requires macOS:
-
 ```bash
-npm ci
-npm test
-npm run check:lua
+swift test
 scripts/build-dmg.sh dev
+scripts/smoke-test-app.sh
 ```
 
-The verified DMG and SHA-256 file are written to `dist/`.
+The build script:
 
-## Uninstall
+- compiles the release Swift executable
+- creates a real `.app` bundle
+- performs ad-hoc code signing and strict signature verification
+- builds and verifies the DMG with `hdiutil`
+- generates a portable SHA-256 file
 
-1. Remove the managed block between `BEGIN Discord Voice Hotkey` and `END Discord Voice Hotkey` from `~/.hammerspoon/init.lua`.
-2. Delete `~/.hammerspoon/discord-voice-hotkey`.
-3. Reload Hammerspoon.
+## Architecture
 
-Hammerspoon and FFmpeg are left installed because other applications may use them.
+- **AppKit** menu bar application
+- **Carbon** global hotkey registration
+- **AVFoundation** native M4A/AAC recording
+- **NSPasteboard** clipboard snapshot, file paste, and restoration
+- **Core Graphics** synthetic `Command + V` after Accessibility authorization
+- **Swift Package Manager** build and XCTest suite
 
 ## License
 

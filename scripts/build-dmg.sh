@@ -17,11 +17,12 @@ DMG="$DIST/Discord-Voice-Hotkey-${VERSION}.dmg"
 rm -rf "$STAGE" "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$STAGE"
 
-swift build --package-path "$ROOT" -c release --product DiscordVoiceHotkey
-BIN_DIR="$(swift build --package-path "$ROOT" -c release --show-bin-path)"
+swift build --package-path "$ROOT" -c release --product DiscordVoiceHotkey --arch arm64 --arch x86_64
+BIN_DIR="$(swift build --package-path "$ROOT" -c release --show-bin-path --arch arm64 --arch x86_64)"
 cp "$BIN_DIR/DiscordVoiceHotkey" "$APP/Contents/MacOS/DiscordVoiceHotkey"
 cp "$ROOT/Resources/Info.plist" "$APP/Contents/Info.plist"
 chmod +x "$APP/Contents/MacOS/DiscordVoiceHotkey"
+lipo -verify_arch arm64 x86_64 "$APP/Contents/MacOS/DiscordVoiceHotkey"
 
 plutil -lint "$APP/Contents/Info.plist"
 codesign --force --deep --sign - "$APP"
