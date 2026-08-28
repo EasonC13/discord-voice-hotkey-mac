@@ -37,6 +37,7 @@ jobs:
           bash -n install.command
           bash -n src/record.sh
           bash -n scripts/build-dmg.sh
+          bash -n scripts/smoke-test-app.sh
           bash -n scripts/write-checksum.sh
           bash -n tests/test_portable_checksum.sh
 
@@ -48,6 +49,9 @@ jobs:
 
       - name: Build and verify DMG
         run: scripts/build-dmg.sh "${GITHUB_REF_NAME}"
+
+      - name: Launch native menu bar app
+        run: scripts/smoke-test-app.sh
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v6

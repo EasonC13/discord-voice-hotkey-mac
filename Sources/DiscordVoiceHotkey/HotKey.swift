@@ -100,7 +100,7 @@ final class GlobalHotKey {
             throw RegistrationError.installHandler(handlerStatus)
         }
 
-        var identifier = EventHotKeyID(signature: OSType(0x4456484B), id: 1) // DVHK
+        let identifier = EventHotKeyID(signature: OSType(0x4456484B), id: 1) // DVHK
         let registerStatus = RegisterEventHotKey(
             configuration.keyCode,
             configuration.carbonModifiers,
