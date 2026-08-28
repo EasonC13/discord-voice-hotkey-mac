@@ -37,12 +37,30 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
     private struct ClipboardSnapshot {
         let items: [[NSPasteboard.PasteboardType: Data]]
         let wasEmpty: Bool
+        let originalChangeCount: Int
     }
 
     private var recorder: AVAudioRecorder?
     private var snapshots: [String: ClipboardSnapshot] = [:]
-    private var lastPasteboardChangeCount: Int?
-    private var lastOutputURL: URL?
+    private var pasteChangeCounts: [String: Int] = [:]
+    private var activeClipboardToken: String?
+    private var lastExternalApplicationPID: Int32?
+
+    override init() {
+        super.init()
+        rememberExternalApplication(NSWorkspace.shared.frontmostApplication)
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self,
+            selector: #selector(applicationDidActivate(_:)),
+            name: NSWorkspace.didActivateApplicationNotification,
+            object: nil
+        )
+        removeStaleRecordings()
+    }
+
+    deinit {
+        NSWorkspace.shared.notificationCenter.removeObserver(self)
+    }
 
     var microphoneAuthorized: Bool {
         AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
@@ -63,7 +81,11 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
     func captureContext(at date: Date) -> RecordingContext {
         let token = UUID().uuidString
         snapshots[token] = captureClipboard()
-        let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        activeClipboardToken = token
+        let frontmost = NSWorkspace.shared.frontmostApplication
+        let pid = frontmost?.processIdentifier == ProcessInfo.processInfo.processIdentifier
+            ? lastExternalApplicationPID
+            : frontmost?.processIdentifier
         return RecordingContext(
             clipboardToken: token,
             frontmostApplicationPID: pid,
@@ -93,7 +115,6 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
             recorder.prepareToRecord()
             guard recorder.record() else { throw RuntimeError.recorderStart }
             self.recorder = recorder
-            lastOutputURL = url
         } catch let error as RuntimeError {
             throw error
         } catch {
@@ -109,14 +130,12 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
 
         if cancel {
             try? FileManager.default.removeItem(at: url)
-            lastOutputURL = nil
             return nil
         }
 
         guard let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize,
               size > 512 else {
             try? FileManager.default.removeItem(at: url)
-            lastOutputURL = nil
             return nil
         }
         return url
@@ -141,7 +160,9 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
         guard pasteboard.writeObjects([url as NSURL]) else {
             throw RuntimeError.pasteboardWrite
         }
-        lastPasteboardChangeCount = pasteboard.changeCount
+        if let activeClipboardToken {
+            pasteChangeCounts[activeClipboardToken] = pasteboard.changeCount
+        }
 
         guard let source = CGEventSource(stateID: .combinedSessionState),
               let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: true),
@@ -163,7 +184,7 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
     }
 
     func restoreClipboardLater(token: String) {
-        let expectedChangeCount = lastPasteboardChangeCount
+        let expectedChangeCount = pasteChangeCounts[token]
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
             self?.restoreClipboard(token: token, onlyIfChangeCountIs: expectedChangeCount)
         }
@@ -188,7 +209,11 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
     private func captureClipboard() -> ClipboardSnapshot {
         let pasteboard = NSPasteboard.general
         guard let pasteboardItems = pasteboard.pasteboardItems, !pasteboardItems.isEmpty else {
-            return ClipboardSnapshot(items: [], wasEmpty: true)
+            return ClipboardSnapshot(
+                items: [],
+                wasEmpty: true,
+                originalChangeCount: pasteboard.changeCount
+            )
         }
 
         let items = pasteboardItems.map { item in
@@ -196,13 +221,21 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
                 item.data(forType: type).map { (type, $0) }
             })
         }
-        return ClipboardSnapshot(items: items, wasEmpty: false)
+        return ClipboardSnapshot(
+            items: items,
+            wasEmpty: false,
+            originalChangeCount: pasteboard.changeCount
+        )
     }
 
     private func restoreClipboard(token: String, onlyIfChangeCountIs expected: Int?) {
         guard let snapshot = snapshots.removeValue(forKey: token) else { return }
+        pasteChangeCounts.removeValue(forKey: token)
+        if activeClipboardToken == token { activeClipboardToken = nil }
+
         let pasteboard = NSPasteboard.general
-        if let expected, pasteboard.changeCount != expected {
+        let safeChangeCount = expected ?? snapshot.originalChangeCount
+        if pasteboard.changeCount != safeChangeCount {
             return
         }
 
@@ -221,6 +254,35 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
     private func openSettings(_ value: String) {
         guard let url = URL(string: value) else { return }
         NSWorkspace.shared.open(url)
+    }
+
+    @objc private func applicationDidActivate(_ notification: Notification) {
+        let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+        rememberExternalApplication(application)
+    }
+
+    private func rememberExternalApplication(_ application: NSRunningApplication?) {
+        guard let application,
+              application.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return }
+        lastExternalApplicationPID = application.processIdentifier
+    }
+
+    private func removeStaleRecordings() {
+        let directory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("DiscordVoiceHotkey", isDirectory: true)
+        guard let files = try? FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.contentModificationDateKey]
+        ) else { return }
+
+        let cutoff = Date().addingTimeInterval(-1_800)
+        for file in files {
+            let modified = try? file.resourceValues(forKeys: [.contentModificationDateKey])
+                .contentModificationDate
+            if let modified, modified < cutoff {
+                try? FileManager.default.removeItem(at: file)
+            }
+        }
     }
 
     private static func timestamp() -> String {
