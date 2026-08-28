@@ -1,5 +1,19 @@
 import Foundation
 
+public enum RecordingSessionError: LocalizedError, Equatable {
+    case noUsableAudio
+    case clipboardRestorationPending
+
+    public var errorDescription: String? {
+        switch self {
+        case .noUsableAudio:
+            return "No usable audio was recorded."
+        case .clipboardRestorationPending:
+            return "Please wait a moment for the clipboard to be restored."
+        }
+    }
+}
+
 public struct RecordingContext: Equatable {
     public let clipboardToken: String
     public let frontmostApplicationPID: Int32?
@@ -22,6 +36,7 @@ public protocol RecordingSessionRuntime: AnyObject {
     func stopRecording(cancel: Bool) -> URL?
     func activateApplication(pid: Int32?)
     func pasteAudioFile(_ url: URL) throws
+    func deleteRecording(at url: URL)
     func restoreClipboardNow(token: String)
     func restoreClipboardLater(token: String)
 }
@@ -29,6 +44,7 @@ public protocol RecordingSessionRuntime: AnyObject {
 public final class RecordingSessionMachine {
     private let runtime: RecordingSessionRuntime
     private var context: RecordingContext?
+    private var clipboardRestoreDeadline: Date?
 
     public var isRecording: Bool { context != nil }
 
@@ -38,6 +54,10 @@ public final class RecordingSessionMachine {
 
     public func toggle(now: Date = Date()) throws {
         guard let activeContext = context else {
+            if let deadline = clipboardRestoreDeadline, now < deadline {
+                throw RecordingSessionError.clipboardRestorationPending
+            }
+            clipboardRestoreDeadline = nil
             let newContext = runtime.captureContext(at: now)
             do {
                 try runtime.startRecording()
@@ -53,16 +73,23 @@ public final class RecordingSessionMachine {
         let shouldCancel = now.timeIntervalSince(activeContext.startedAt) < 0.5
         let outputURL = runtime.stopRecording(cancel: shouldCancel)
 
-        guard !shouldCancel, let outputURL else {
+        guard !shouldCancel else {
             runtime.restoreClipboardNow(token: activeContext.clipboardToken)
             return
+        }
+
+        guard let outputURL else {
+            runtime.restoreClipboardNow(token: activeContext.clipboardToken)
+            throw RecordingSessionError.noUsableAudio
         }
 
         runtime.activateApplication(pid: activeContext.frontmostApplicationPID)
         do {
             try runtime.pasteAudioFile(outputURL)
             runtime.restoreClipboardLater(token: activeContext.clipboardToken)
+            clipboardRestoreDeadline = now.addingTimeInterval(1.5)
         } catch {
+            runtime.deleteRecording(at: outputURL)
             runtime.restoreClipboardNow(token: activeContext.clipboardToken)
             throw error
         }

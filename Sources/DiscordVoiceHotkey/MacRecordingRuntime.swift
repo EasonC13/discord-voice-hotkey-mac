@@ -116,8 +116,10 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
             guard recorder.record() else { throw RuntimeError.recorderStart }
             self.recorder = recorder
         } catch let error as RuntimeError {
+            deleteRecording(at: url)
             throw error
         } catch {
+            deleteRecording(at: url)
             throw RuntimeError.recorderCreation
         }
     }
@@ -157,6 +159,9 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
         Thread.sleep(forTimeInterval: 0.2)
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
+        if let activeClipboardToken {
+            pasteChangeCounts[activeClipboardToken] = pasteboard.changeCount
+        }
         guard pasteboard.writeObjects([url as NSURL]) else {
             throw RuntimeError.pasteboardWrite
         }
@@ -177,6 +182,10 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1_800) {
             try? FileManager.default.removeItem(at: url)
         }
+    }
+
+    func deleteRecording(at url: URL) {
+        try? FileManager.default.removeItem(at: url)
     }
 
     func restoreClipboardNow(token: String) {
