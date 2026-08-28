@@ -45,6 +45,8 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
     private var pasteChangeCounts: [String: Int] = [:]
     private var activeClipboardToken: String?
     private var lastExternalApplicationPID: Int32?
+    private var pasteTargetApplicationPID: Int32?
+    private var automaticSendEnabled = true
 
     override init() {
         super.init()
@@ -68,6 +70,10 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
 
     var accessibilityAuthorized: Bool {
         AXIsProcessTrusted()
+    }
+
+    func setAutomaticSendEnabled(_ enabled: Bool) {
+        automaticSendEnabled = enabled
     }
 
     func requestInitialPermissions() {
@@ -148,6 +154,7 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
     }
 
     func activateApplication(pid: Int32?) {
+        pasteTargetApplicationPID = pid
         guard let pid,
               let application = NSRunningApplication(processIdentifier: pid) else { return }
         application.activate(options: [.activateIgnoringOtherApps])
@@ -191,9 +198,31 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
         keyDown.post(tap: .cghidEventTap)
         keyUp.post(tap: .cghidEventTap)
 
+        if automaticSendEnabled {
+            DispatchQueue.main.asyncAfter(deadline: .now() + AutomaticSendPolicy.sendDelay) { [weak self] in
+                self?.sendReturnIfSafe()
+            }
+        }
+
         DispatchQueue.main.asyncAfter(deadline: .now() + 1_800) {
             try? FileManager.default.removeItem(at: url)
         }
+    }
+
+    private func sendReturnIfSafe() {
+        let frontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        guard AutomaticSendPolicy.shouldSend(
+            isEnabled: automaticSendEnabled,
+            frontmostApplicationPID: frontmostPID,
+            targetApplicationPID: pasteTargetApplicationPID
+        ),
+        let source = CGEventSource(stateID: .combinedSessionState),
+        let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 36, keyDown: true),
+        let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 36, keyDown: false) else {
+            return
+        }
+        keyDown.post(tap: .cghidEventTap)
+        keyUp.post(tap: .cghidEventTap)
     }
 
     func deleteRecording(at url: URL) {

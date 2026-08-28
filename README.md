@@ -23,8 +23,9 @@ No Homebrew, Hammerspoon, FFmpeg, or background terminal process is required.
 1. Keep the app running from the microphone icon in the macOS menu bar.
 2. Put the cursor in a Discord message box.
 3. Press `Control + Option + R` once to start recording.
-4. Press it again to stop and paste the audio attachment.
-5. Review the attachment and press Return yourself when ready.
+4. Press it again to stop, paste the audio attachment, and send it automatically 0.2 seconds later.
+
+Automatic sending is enabled by default. Turn **Send Automatically After Paste (0.2s)** off from the menu bar if you only want to stage the attachment. For safety, the app skips Enter if focus moved away from the original target app during the 0.2-second interval.
 
 The app records native AAC audio in an `.m4a` container. Discord can play and upload this format directly.
 

@@ -2,6 +2,10 @@ import XCTest
 @testable import DiscordVoiceHotkeyCore
 
 final class AutomaticSendPolicyTests: XCTestCase {
+    func testAutomaticSendDelayIsAtMostTwoTenthsOfASecond() {
+        XCTAssertEqual(AutomaticSendPolicy.sendDelay, 0.2, accuracy: 0.001)
+    }
+
     func testSendsWhenEnabledAndOriginalTargetStillHasFocus() {
         XCTAssertTrue(
             AutomaticSendPolicy.shouldSend(

@@ -7,14 +7,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private var startStopItem: NSMenuItem!
     private var shortcutItem: NSMenuItem!
+    private var automaticSendItem: NSMenuItem!
     private var microphoneItem: NSMenuItem!
     private var accessibilityItem: NSMenuItem!
     private var hotKey: GlobalHotKey?
     private var hotKeyConfiguration = HotKeyConfiguration.load()
     private var shortcutCapture: ShortcutCaptureWindowController?
+    private var automaticSendEnabled: Bool = {
+        let defaults = UserDefaults.standard
+        let key = "automaticSendEnabled"
+        return defaults.object(forKey: key) == nil ? true : defaults.bool(forKey: key)
+    }()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        runtime.setAutomaticSendEnabled(automaticSendEnabled)
         configureStatusItem()
         registerHotKey(hotKeyConfiguration, showErrorOnFailure: true)
         runtime.requestInitialPermissions()
@@ -47,6 +54,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         )
         shortcutItem.target = self
         menu.addItem(shortcutItem)
+
+        automaticSendItem = NSMenuItem(
+            title: "Send Automatically After Paste",
+            action: #selector(toggleAutomaticSend),
+            keyEquivalent: ""
+        )
+        automaticSendItem.target = self
+        menu.addItem(automaticSendItem)
 
         menu.addItem(.separator())
 
@@ -106,6 +121,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         shortcutCapture?.beginCapture()
     }
 
+    @objc private func toggleAutomaticSend() {
+        automaticSendEnabled.toggle()
+        UserDefaults.standard.set(automaticSendEnabled, forKey: "automaticSendEnabled")
+        runtime.setAutomaticSendEnabled(automaticSendEnabled)
+        refreshMenu()
+    }
+
     @objc private func openMicrophoneSettings() {
         runtime.openMicrophoneSettings()
     }
@@ -117,7 +139,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func showAbout() {
         let alert = NSAlert()
         alert.messageText = "Discord Voice Hotkey"
-        alert.informativeText = "A native menu bar recorder for macOS.\n\nPress \(hotKeyConfiguration.displayName) to start recording, then press it again to paste an M4A audio attachment into the app that was active when recording began."
+        alert.informativeText = "A native menu bar recorder for macOS.\n\nPress \(hotKeyConfiguration.displayName) to start recording, then press it again to paste an M4A audio attachment and send it automatically after 0.2 seconds."
         alert.alertStyle = .informational
         alert.addButton(withTitle: "OK")
         NSApp.activate(ignoringOtherApps: true)
@@ -167,9 +189,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func refreshMenu() {
         startStopItem?.title = machine.isRecording
-            ? "Stop and Paste  \(hotKeyConfiguration.displayName)"
+            ? (automaticSendEnabled
+                ? "Stop, Paste, and Send  \(hotKeyConfiguration.displayName)"
+                : "Stop and Paste  \(hotKeyConfiguration.displayName)")
             : "Start Recording  \(hotKeyConfiguration.displayName)"
         shortcutItem?.title = "Change Shortcut…  (Current: \(hotKeyConfiguration.displayName))"
+        automaticSendItem?.title = "Send Automatically After Paste (0.2s)"
+        automaticSendItem?.state = automaticSendEnabled ? .on : .off
         microphoneItem?.title = runtime.microphoneAuthorized
             ? "✓ Microphone Allowed"
             : "⚠ Enable Microphone…"
@@ -187,7 +213,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             guard let self else { return }
             let alert = NSAlert()
             alert.messageText = "Discord Voice Hotkey is ready"
-            alert.informativeText = "The microphone icon now lives in your menu bar.\n\nPress \(self.hotKeyConfiguration.displayName) once to record and again to paste the audio attachment. You can change the shortcut from the menu bar at any time."
+            alert.informativeText = "The microphone icon now lives in your menu bar.\n\nPress \(self.hotKeyConfiguration.displayName) once to record and again to paste and automatically send the audio attachment. You can change the shortcut or disable automatic sending from the menu bar."
             alert.alertStyle = .informational
             alert.addButton(withTitle: "Got it")
             NSApp.activate(ignoringOtherApps: true)
