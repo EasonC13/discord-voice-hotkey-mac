@@ -188,6 +188,14 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
         try? FileManager.default.removeItem(at: url)
     }
 
+    func shutdownRecordingStorage() {
+        cancelActiveRecording()
+        for token in Array(snapshots.keys) {
+            restoreClipboardNow(token: token)
+        }
+        removeAllRecordings()
+    }
+
     func restoreClipboardNow(token: String) {
         restoreClipboard(token: token, onlyIfChangeCountIs: nil)
     }
@@ -277,10 +285,8 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
     }
 
     private func removeStaleRecordings() {
-        let directory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("DiscordVoiceHotkey", isDirectory: true)
         guard let files = try? FileManager.default.contentsOfDirectory(
-            at: directory,
+            at: recordingsDirectory,
             includingPropertiesForKeys: [.contentModificationDateKey]
         ) else { return }
 
@@ -292,6 +298,21 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
                 try? FileManager.default.removeItem(at: file)
             }
         }
+    }
+
+    private func removeAllRecordings() {
+        guard let files = try? FileManager.default.contentsOfDirectory(
+            at: recordingsDirectory,
+            includingPropertiesForKeys: nil
+        ) else { return }
+        for file in files {
+            try? FileManager.default.removeItem(at: file)
+        }
+    }
+
+    private var recordingsDirectory: URL {
+        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("DiscordVoiceHotkey", isDirectory: true)
     }
 
     private static func timestamp() -> String {

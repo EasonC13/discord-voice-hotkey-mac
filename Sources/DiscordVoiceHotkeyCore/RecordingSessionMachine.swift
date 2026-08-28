@@ -37,6 +37,7 @@ public protocol RecordingSessionRuntime: AnyObject {
     func activateApplication(pid: Int32?)
     func pasteAudioFile(_ url: URL) throws
     func deleteRecording(at url: URL)
+    func shutdownRecordingStorage()
     func restoreClipboardNow(token: String)
     func restoreClipboardLater(token: String)
 }
@@ -50,6 +51,12 @@ public final class RecordingSessionMachine {
 
     public init(runtime: RecordingSessionRuntime) {
         self.runtime = runtime
+    }
+
+    public func shutdown() {
+        context = nil
+        clipboardRestoreDeadline = nil
+        runtime.shutdownRecordingStorage()
     }
 
     public func toggle(now: Date = Date()) throws {

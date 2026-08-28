@@ -22,7 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        runtime.cancelActiveRecording()
+        machine.shutdown()
     }
 
     private func configureStatusItem() {

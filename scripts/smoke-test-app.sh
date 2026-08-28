@@ -5,11 +5,13 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DMG="${1:-$(find "$ROOT/dist" -maxdepth 1 -name 'Discord-Voice-Hotkey-*.dmg' -print -quit)}"
 PROCESS_NAME="DiscordVoiceHotkey"
 MOUNT_POINT="$(mktemp -d)"
+INSTALL_ROOT="$(mktemp -d)"
 
 cleanup() {
   pkill -x "$PROCESS_NAME" 2>/dev/null || true
   hdiutil detach "$MOUNT_POINT" -quiet 2>/dev/null || true
   rmdir "$MOUNT_POINT" 2>/dev/null || true
+  rm -rf -- "$INSTALL_ROOT"
 }
 trap cleanup EXIT
 
@@ -31,7 +33,14 @@ APP="$MOUNT_POINT/Discord Voice Hotkey.app"
 [[ "$(readlink "$MOUNT_POINT/Applications")" == "/Applications" ]]
 [[ -f "$APP/Contents/Resources/AppIcon.icns" ]]
 codesign --verify --deep --strict --verbose=2 "$APP"
-open "$APP"
+INSTALLED_APP="$INSTALL_ROOT/Applications/Discord Voice Hotkey.app"
+mkdir -p "$(dirname "$INSTALLED_APP")"
+ditto "$APP" "$INSTALLED_APP"
+hdiutil detach "$MOUNT_POINT" -quiet
+
+[[ -d "$INSTALLED_APP" ]]
+codesign --verify --deep --strict --verbose=2 "$INSTALLED_APP"
+open "$INSTALLED_APP"
 
 PID=""
 for _ in 1 2 3 4 5 6 7 8 9 10; do
@@ -41,8 +50,8 @@ for _ in 1 2 3 4 5 6 7 8 9 10; do
 done
 
 if [[ -z "$PID" ]]; then
-  printf '%s\n' "The menu bar app from the mounted DMG did not remain running." >&2
+  printf '%s\n' "The installed menu bar app did not remain running." >&2
   exit 1
 fi
 
-printf 'Mounted DMG app launched successfully (PID %s).\n' "$PID"
+printf 'Installed DMG app launched successfully (PID %s).\n' "$PID"
