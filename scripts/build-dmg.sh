@@ -7,27 +7,33 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
 fi
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-VERSION="${1:-dev}"
+RAW_VERSION="${1:-dev}"
+VERSION="${RAW_VERSION//\//-}"
 DIST="$ROOT/dist"
 STAGE="$DIST/dmg-root"
+APP="$DIST/Discord Voice Hotkey.app"
 DMG="$DIST/Discord-Voice-Hotkey-${VERSION}.dmg"
 
-rm -rf "$STAGE"
-mkdir -p "$STAGE/Discord Voice Hotkey/src"
+rm -rf "$STAGE" "$APP"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$STAGE"
 
-cp "$ROOT/README.md" "$STAGE/Discord Voice Hotkey/README.md"
-cp "$ROOT/LICENSE" "$STAGE/Discord Voice Hotkey/LICENSE"
-cp "$ROOT/install.command" "$STAGE/Discord Voice Hotkey/Install Discord Voice Hotkey.command"
-cp "$ROOT/src/recorder.lua" "$STAGE/Discord Voice Hotkey/src/recorder.lua"
-cp "$ROOT/src/voice_hotkey.lua" "$STAGE/Discord Voice Hotkey/src/voice_hotkey.lua"
-cp "$ROOT/src/record.sh" "$STAGE/Discord Voice Hotkey/src/record.sh"
-chmod +x "$STAGE/Discord Voice Hotkey/Install Discord Voice Hotkey.command"
-chmod +x "$STAGE/Discord Voice Hotkey/src/record.sh"
+swift build --package-path "$ROOT" -c release --product DiscordVoiceHotkey
+BIN_DIR="$(swift build --package-path "$ROOT" -c release --show-bin-path)"
+cp "$BIN_DIR/DiscordVoiceHotkey" "$APP/Contents/MacOS/DiscordVoiceHotkey"
+cp "$ROOT/Resources/Info.plist" "$APP/Contents/Info.plist"
+chmod +x "$APP/Contents/MacOS/DiscordVoiceHotkey"
 
-rm -f "$DMG"
+plutil -lint "$APP/Contents/Info.plist"
+codesign --force --deep --sign - "$APP"
+codesign --verify --deep --strict --verbose=2 "$APP"
+
+cp -R "$APP" "$STAGE/Discord Voice Hotkey.app"
+ln -s /Applications "$STAGE/Applications"
+
+rm -f "$DMG" "$DMG.sha256"
 hdiutil create \
   -volname "Discord Voice Hotkey" \
-  -srcfolder "$STAGE/Discord Voice Hotkey" \
+  -srcfolder "$STAGE" \
   -ov \
   -format UDZO \
   "$DMG"
