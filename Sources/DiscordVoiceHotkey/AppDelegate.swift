@@ -154,10 +154,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func updateStatusAppearance() {
         guard let button = statusItem?.button else { return }
-        let symbol = machine.isRecording ? "record.circle.fill" : "mic.circle"
+        let symbol = StatusIconPolicy.symbolName(isRecording: machine.isRecording)
         button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: "Discord Voice Hotkey")
-        button.image?.isTemplate = !machine.isRecording
-        button.contentTintColor = machine.isRecording ? .systemRed : .labelColor
+        button.image?.isTemplate = true
+        button.contentTintColor = StatusIconPolicy.usesExplicitTint(isRecording: machine.isRecording)
+            ? .systemRed
+            : nil
         button.toolTip = machine.isRecording
             ? "Recording… Press \(hotKeyConfiguration.displayName) to stop"
             : "Press \(hotKeyConfiguration.displayName) to record"
