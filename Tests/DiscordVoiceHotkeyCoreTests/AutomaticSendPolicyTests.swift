@@ -10,6 +10,7 @@ final class AutomaticSendPolicyTests: XCTestCase {
         XCTAssertTrue(
             AutomaticSendPolicy.shouldSend(
                 isEnabled: true,
+                focusWasInterrupted: false,
                 frontmostApplicationPID: 42,
                 targetApplicationPID: 42
             )
@@ -20,6 +21,7 @@ final class AutomaticSendPolicyTests: XCTestCase {
         XCTAssertFalse(
             AutomaticSendPolicy.shouldSend(
                 isEnabled: false,
+                focusWasInterrupted: false,
                 frontmostApplicationPID: 42,
                 targetApplicationPID: 42
             )
@@ -30,7 +32,19 @@ final class AutomaticSendPolicyTests: XCTestCase {
         XCTAssertFalse(
             AutomaticSendPolicy.shouldSend(
                 isEnabled: true,
+                focusWasInterrupted: false,
                 frontmostApplicationPID: 99,
+                targetApplicationPID: 42
+            )
+        )
+    }
+
+    func testDoesNotSendIfFocusWasInterruptedEvenAfterReturningToTarget() {
+        XCTAssertFalse(
+            AutomaticSendPolicy.shouldSend(
+                isEnabled: true,
+                focusWasInterrupted: true,
+                frontmostApplicationPID: 42,
                 targetApplicationPID: 42
             )
         )
@@ -40,6 +54,7 @@ final class AutomaticSendPolicyTests: XCTestCase {
         XCTAssertFalse(
             AutomaticSendPolicy.shouldSend(
                 isEnabled: true,
+                focusWasInterrupted: false,
                 frontmostApplicationPID: 42,
                 targetApplicationPID: nil
             )

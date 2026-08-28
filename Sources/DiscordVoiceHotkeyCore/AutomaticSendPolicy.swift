@@ -5,10 +5,11 @@ public enum AutomaticSendPolicy {
 
     public static func shouldSend(
         isEnabled: Bool,
+        focusWasInterrupted: Bool,
         frontmostApplicationPID: Int32?,
         targetApplicationPID: Int32?
     ) -> Bool {
-        guard isEnabled, let targetApplicationPID else { return false }
+        guard isEnabled, !focusWasInterrupted, let targetApplicationPID else { return false }
         return frontmostApplicationPID == targetApplicationPID
     }
 }

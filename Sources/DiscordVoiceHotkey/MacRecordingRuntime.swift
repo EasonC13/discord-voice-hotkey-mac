@@ -47,6 +47,9 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
     private var lastExternalApplicationPID: Int32?
     private var pasteTargetApplicationPID: Int32?
     private var automaticSendEnabled = true
+    private var pendingAutomaticSendID: UUID?
+    private var pendingAutomaticSendTargetPID: Int32?
+    private var automaticSendFocusWasInterrupted = false
 
     override init() {
         super.init()
@@ -74,6 +77,9 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
 
     func setAutomaticSendEnabled(_ enabled: Bool) {
         automaticSendEnabled = enabled
+        if !enabled {
+            clearPendingAutomaticSend()
+        }
     }
 
     func requestInitialPermissions() {
@@ -198,9 +204,13 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
         keyDown.post(tap: .cghidEventTap)
         keyUp.post(tap: .cghidEventTap)
 
-        if automaticSendEnabled {
+        if automaticSendEnabled, let targetPID = pasteTargetApplicationPID {
+            let sendID = UUID()
+            pendingAutomaticSendID = sendID
+            pendingAutomaticSendTargetPID = targetPID
+            automaticSendFocusWasInterrupted = false
             DispatchQueue.main.asyncAfter(deadline: .now() + AutomaticSendPolicy.sendDelay) { [weak self] in
-                self?.sendReturnIfSafe()
+                self?.sendReturnIfSafe(sendID: sendID)
             }
         }
 
@@ -209,20 +219,31 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
         }
     }
 
-    private func sendReturnIfSafe() {
+    private func sendReturnIfSafe(sendID: UUID) {
+        guard pendingAutomaticSendID == sendID else { return }
+        defer { clearPendingAutomaticSend() }
+
         let frontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
-        guard AutomaticSendPolicy.shouldSend(
-            isEnabled: automaticSendEnabled,
-            frontmostApplicationPID: frontmostPID,
-            targetApplicationPID: pasteTargetApplicationPID
-        ),
-        let source = CGEventSource(stateID: .combinedSessionState),
-        let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 36, keyDown: true),
-        let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 36, keyDown: false) else {
+        guard let targetPID = pendingAutomaticSendTargetPID,
+              AutomaticSendPolicy.shouldSend(
+                  isEnabled: automaticSendEnabled,
+                  focusWasInterrupted: automaticSendFocusWasInterrupted,
+                  frontmostApplicationPID: frontmostPID,
+                  targetApplicationPID: targetPID
+              ),
+              let source = CGEventSource(stateID: .combinedSessionState),
+              let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 36, keyDown: true),
+              let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 36, keyDown: false) else {
             return
         }
-        keyDown.post(tap: .cghidEventTap)
-        keyUp.post(tap: .cghidEventTap)
+        keyDown.postToPid(targetPID)
+        keyUp.postToPid(targetPID)
+    }
+
+    private func clearPendingAutomaticSend() {
+        pendingAutomaticSendID = nil
+        pendingAutomaticSendTargetPID = nil
+        automaticSendFocusWasInterrupted = false
     }
 
     func deleteRecording(at url: URL) {
@@ -230,6 +251,7 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
     }
 
     func shutdownRecordingStorage() {
+        clearPendingAutomaticSend()
         cancelActiveRecording()
         for token in Array(snapshots.keys) {
             restoreClipboardNow(token: token)
@@ -320,6 +342,10 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
 
     @objc private func applicationDidActivate(_ notification: Notification) {
         let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+        if pendingAutomaticSendID != nil,
+           application?.processIdentifier != pendingAutomaticSendTargetPID {
+            automaticSendFocusWasInterrupted = true
+        }
         rememberExternalApplication(application)
     }
 
