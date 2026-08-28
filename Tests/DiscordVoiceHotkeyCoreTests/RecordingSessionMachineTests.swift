@@ -70,7 +70,7 @@ final class RecordingSessionMachineTests: XCTestCase {
         ])
     }
 
-    func testNewRecordingIsBlockedDuringClipboardRestorationWindow() throws {
+    func testNewRecordingIsBlockedUntilClipboardRestorationCompletes() throws {
         let runtime = MockRuntime()
         let machine = RecordingSessionMachine(runtime: runtime)
         let started = Date(timeIntervalSince1970: 100)
@@ -79,10 +79,15 @@ final class RecordingSessionMachineTests: XCTestCase {
         try machine.toggle(now: started.addingTimeInterval(2))
         let eventsAfterPaste = runtime.events
 
-        XCTAssertThrowsError(try machine.toggle(now: started.addingTimeInterval(2.2))) { error in
+        XCTAssertThrowsError(try machine.toggle(now: started.addingTimeInterval(4))) { error in
             XCTAssertEqual(error as? RecordingSessionError, .clipboardRestorationPending)
         }
         XCTAssertEqual(runtime.events, eventsAfterPaste)
+
+        runtime.completeRestore()
+        try machine.toggle(now: started.addingTimeInterval(4))
+        XCTAssertTrue(machine.isRecording)
+        XCTAssertEqual(Array(runtime.events.suffix(2)), ["capture", "start"])
     }
 
     func testPasteFailureDeletesOutputBeforeRestoringClipboard() throws {
@@ -125,6 +130,7 @@ private final class MockRuntime: RecordingSessionRuntime {
     var events: [String] = []
     var outputURL: URL? = URL(fileURLWithPath: "/tmp/voice.m4a")
     var pasteError: Error?
+    var restoreCompletion: (() -> Void)?
 
     func captureContext(at date: Date) -> RecordingContext {
         events.append("capture")
@@ -167,5 +173,16 @@ private final class MockRuntime: RecordingSessionRuntime {
 
     func restoreClipboardLater(token: String) {
         events.append("restoreLater:\(token)")
+    }
+
+    func restoreClipboardLater(token: String, completion: @escaping () -> Void) {
+        events.append("restoreLater:\(token)")
+        restoreCompletion = completion
+    }
+
+    func completeRestore() {
+        let completion = restoreCompletion
+        restoreCompletion = nil
+        completion?()
     }
 }
