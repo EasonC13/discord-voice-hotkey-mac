@@ -29,6 +29,9 @@ jobs:
       - name: Test workflow permission policy
         run: python3 tests/test_workflow_permissions.py
 
+      - name: Test default shortcut policy
+        run: python3 tests/test_default_shortcut_policy.py
+
       - name: Test portable checksum
         run: tests/test_portable_checksum.sh
 
