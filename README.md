@@ -1,5 +1,7 @@
 # Discord Voice Hotkey for macOS
 
+**English** | [繁體中文](README.zh-TW.md)
+
 [![Build macOS DMG](https://github.com/EasonC13/discord-voice-hotkey-mac/actions/workflows/build-dmg.yml/badge.svg)](https://github.com/EasonC13/discord-voice-hotkey-mac/actions/workflows/build-dmg.yml)
 
 A native macOS menu bar app for recording and pasting audio attachments into Discord or any other app that accepts pasted files.
@@ -22,7 +24,7 @@ No Homebrew, Hammerspoon, FFmpeg, or background terminal process is required.
 
 1. Keep the app running from the microphone icon in the macOS menu bar.
 2. Put the cursor in a Discord message box.
-3. Press `Control + Option + R` once to start recording.
+3. Press `Control + R` once to start recording.
 4. Press it again to stop, paste the audio attachment, and send it automatically 0.2 seconds later.
 
 Automatic sending is enabled by default. Turn **Send Automatically After Paste (0.2s)** off from the menu bar if you only want to stage the attachment. For safety, the app skips Enter if focus moved away from the original target app during the 0.2-second interval.
@@ -31,13 +33,36 @@ The app records native AAC audio in an `.m4a` container. Discord can play and up
 
 ### Custom shortcut
 
-Open the menu bar icon and choose **Change Shortcut…**, then press any combination containing at least one modifier key. The shortcut is applied immediately and saved across app restarts.
+Open the menu bar icon and choose **Change Shortcut…**, then press any combination containing at least one modifier key. The shortcut is applied immediately and saved across app restarts. Updating the app does not overwrite a shortcut you previously customized.
 
 ### Clipboard behavior
 
 The app snapshots the clipboard before recording. After pasting the audio file, it restores the previous clipboard approximately 1.5 seconds later. If you copy something new during that window, the newer clipboard is preserved instead of being overwritten.
 
 Recordings shorter than 0.5 seconds are cancelled. Temporary recordings are removed after 30 minutes.
+
+## Using it with Hermes Agent
+
+This app records and sends the audio file. [Hermes Agent](https://github.com/NousResearch/hermes-agent) can then automatically transcribe Discord voice attachments and treat the transcript as a normal message.
+
+### Recommended speech-to-text engine
+
+For most Hermes users, we recommend **Groq Whisper API**. It is hosted, low latency, offers a free tier, and avoids running a transcription model on your Mac. Add your `GROQ_API_KEY` through Hermes setup, then select Groq:
+
+```bash
+hermes config set stt.enabled true
+hermes config set stt.provider groq
+```
+
+If privacy and offline processing matter more than latency, use **local faster-whisper** instead. The `base` model is a good default; `small` or `medium` can improve multilingual and Chinese accuracy on a capable Mac:
+
+```bash
+hermes config set stt.enabled true
+hermes config set stt.provider local
+hermes config set stt.local.model base
+```
+
+Use `hermes tools` to install or configure voice dependencies and credentials. See the official [Hermes Voice & TTS documentation](https://hermes-agent.nousresearch.com/docs/user-guide/features/tts) for all supported engines, including OpenAI, Mistral, xAI, ElevenLabs, and DeepInfra.
 
 ## Permissions
 

@@ -1,5 +1,6 @@
 import AppKit
 import Carbon
+import DiscordVoiceHotkeyCore
 
 struct HotKeyConfiguration: Equatable {
     let keyCode: UInt32
@@ -7,9 +8,9 @@ struct HotKeyConfiguration: Equatable {
     let displayName: String
 
     static let `default` = HotKeyConfiguration(
-        keyCode: UInt32(kVK_ANSI_R),
-        carbonModifiers: UInt32(controlKey | optionKey),
-        displayName: "⌃⌥R"
+        keyCode: DefaultShortcut.keyCode,
+        carbonModifiers: DefaultShortcut.carbonModifiers,
+        displayName: DefaultShortcut.displayName
     )
 
     static func load() -> HotKeyConfiguration {
