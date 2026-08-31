@@ -1,5 +1,6 @@
 import AppKit
 import Carbon
+import DiscordVoiceHotkeyCore
 
 struct HotKeyConfiguration: Equatable {
     let keyCode: UInt32
