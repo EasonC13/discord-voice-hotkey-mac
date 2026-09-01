@@ -86,6 +86,25 @@ final class OggOpusContainerTests: XCTestCase {
         XCTAssertEqual(pages.last?.headerType, 0x04)
         XCTAssertTrue(pages.allSatisfy(\.checksumIsValid))
     }
+
+    func testConverterProducesOggAndPreservesSourceRecording() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let input = directory.appendingPathComponent("voice-source.wav")
+        let output = directory.appendingPathComponent("voice-20260901-194014-725.ogg")
+        try makeSilentPCM16WAV(sampleRate: 48_000, frameCount: 4_800).write(to: input)
+
+        try MacOggOpusConverter().convert(source: input, destination: output)
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: input.path))
+        let ogg = try Data(contentsOf: output)
+        XCTAssertTrue(ogg.starts(with: Data("OggS".utf8)))
+        XCTAssertTrue(try parseOggPages(ogg).allSatisfy(\.checksumIsValid))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: output.appendingPathExtension("caf").path))
+    }
 }
 
 private struct ParsedOggPage {
