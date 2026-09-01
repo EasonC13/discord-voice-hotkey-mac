@@ -47,19 +47,21 @@ App 會以 `.m4a` 容器錄製原生 AAC 音訊，Discord 可直接播放與上�
 
 ### 推薦的語音轉文字引擎
 
-大多數 Hermes 使用者建議使用 **Groq Whisper API**。它是雲端服務、延遲低、有免費額度，而且不需要在 Mac 上執行轉錄模型。透過 Hermes 設定加入 `GROQ_API_KEY` 後，選擇 Groq：
-
-```bash
-hermes config set stt.enabled true
-hermes config set stt.provider groq
-```
-
-如果更重視隱私與離線處理，建議改用本機的 **faster-whisper**。`base` 是合適的預設模型；效能足夠的 Mac 可改用 `small` 或 `medium`，通常能提升多語言與中文辨識準確度：
+我們首選並推薦使用本機的 **faster-whisper**。語音會留在執行 Hermes 的主機上，不需要 API key，也不必交給雲端轉錄服務。這也是本專案維護者目前實際採用的設定，使用 `large-v3` 模型來提升繁體中文、英文及中英混合語音的辨識準確度：
 
 ```bash
 hermes config set stt.enabled true
 hermes config set stt.provider local
-hermes config set stt.local.model base
+hermes config set stt.local.model large-v3
+```
+
+模型會在 Hermes 主機上執行，該主機可以是你的 Mac，也可以是另一台伺服器。如果 `large-v3` 對目前硬體太慢或太占記憶體，可依序改用 `medium`、`small` 或 `base`。
+
+如果 Hermes 主機無法順暢執行本機模型，或你更重視最低延遲，才建議將 **Groq Whisper API** 當作選用的雲端備援。透過 Hermes 設定加入 `GROQ_API_KEY` 後，選擇 Groq：
+
+```bash
+hermes config set stt.enabled true
+hermes config set stt.provider groq
 ```
 
 可執行 `hermes tools` 安裝或設定語音相依套件與憑證。完整支援清單，包括 OpenAI、Mistral、xAI、ElevenLabs 與 DeepInfra，請參考官方的 [Hermes Voice & TTS 文件](https://hermes-agent.nousresearch.com/docs/user-guide/features/tts)。

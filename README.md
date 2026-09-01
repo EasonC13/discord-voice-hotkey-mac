@@ -47,19 +47,21 @@ This app records and sends the audio file. [Hermes Agent](https://github.com/Nou
 
 ### Recommended speech-to-text engine
 
-For most Hermes users, we recommend **Groq Whisper API**. It is hosted, low latency, offers a free tier, and avoids running a transcription model on your Mac. Add your `GROQ_API_KEY` through Hermes setup, then select Groq:
-
-```bash
-hermes config set stt.enabled true
-hermes config set stt.provider groq
-```
-
-If privacy and offline processing matter more than latency, use **local faster-whisper** instead. The `base` model is a good default; `small` or `medium` can improve multilingual and Chinese accuracy on a capable Mac:
+We recommend **local faster-whisper** first. Audio stays on the machine running Hermes, no API key or cloud transcription service is required, and it is the setup used by this project's maintainers. Our current deployment uses the `large-v3` model for strong Traditional Chinese, English, and mixed-language accuracy:
 
 ```bash
 hermes config set stt.enabled true
 hermes config set stt.provider local
-hermes config set stt.local.model base
+hermes config set stt.local.model large-v3
+```
+
+The model runs on the Hermes host, which can be your Mac or a separate server. If `large-v3` is too slow or memory-intensive on your hardware, try `medium`, `small`, or `base` in that order.
+
+**Groq Whisper API** is an optional cloud fallback when the Hermes host cannot run a local model or minimum latency matters more than local processing. Add your `GROQ_API_KEY` through Hermes setup, then select Groq:
+
+```bash
+hermes config set stt.enabled true
+hermes config set stt.provider groq
 ```
 
 Use `hermes tools` to install or configure voice dependencies and credentials. See the official [Hermes Voice & TTS documentation](https://hermes-agent.nousresearch.com/docs/user-guide/features/tts) for all supported engines, including OpenAI, Mistral, xAI, ElevenLabs, and DeepInfra.
