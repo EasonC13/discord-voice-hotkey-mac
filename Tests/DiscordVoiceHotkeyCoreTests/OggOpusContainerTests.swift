@@ -38,7 +38,9 @@ final class OggOpusContainerTests: XCTestCase {
 
         XCTAssertEqual(pages.count, 4)
         XCTAssertEqual(pages[0].headerType, 0x02)
+        XCTAssertEqual(pages[0].granulePosition, 0)
         XCTAssertTrue(pages[0].payload.starts(with: Data("OpusHead".utf8)))
+        XCTAssertEqual(pages[1].granulePosition, 0)
         XCTAssertTrue(pages[1].payload.starts(with: Data("OpusTags".utf8)))
         XCTAssertEqual(pages[2].payload, stream.packets[0])
         XCTAssertEqual(pages[3].payload, stream.packets[1])
