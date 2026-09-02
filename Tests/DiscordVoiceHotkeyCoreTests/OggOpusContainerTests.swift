@@ -18,6 +18,7 @@ final class OggOpusContainerTests: XCTestCase {
         XCTAssertEqual(stream.sampleRate, 48_000)
         XCTAssertEqual(stream.channelCount, 1)
         XCTAssertEqual(stream.preSkip, 312)
+        XCTAssertEqual(stream.validFrameCount, 1_920)
         XCTAssertEqual(stream.packets, [first, second])
     }
 
@@ -44,6 +45,26 @@ final class OggOpusContainerTests: XCTestCase {
         XCTAssertEqual(pages[3].headerType, 0x04)
         XCTAssertEqual(pages.map(\.sequence), [0, 1, 2, 3])
         XCTAssertTrue(pages.allSatisfy(\.checksumIsValid))
+    }
+
+    func testFinalGranuleTrimsEncoderPaddingUsingCAFValidFrames() throws {
+        let stream = CAFPacketStream(
+            sampleRate: 48_000,
+            channelCount: 1,
+            preSkip: 312,
+            validFrameCount: 1_600,
+            packets: [
+                Data([0xF8, 0x01]),
+                Data([0xF8, 0x02]),
+            ]
+        )
+
+        let pages = try parseOggPages(
+            OggOpusContainer.make(stream: stream, serialNumber: 9)
+        )
+
+        XCTAssertEqual(pages[2].granulePosition, 960)
+        XCTAssertEqual(pages[3].granulePosition, 1_912)
     }
 
     func testMacOSAfconvertOutputRemuxesToPlayableOggStructure() throws {
@@ -109,6 +130,7 @@ final class OggOpusContainerTests: XCTestCase {
 
 private struct ParsedOggPage {
     let headerType: UInt8
+    let granulePosition: UInt64
     let sequence: UInt32
     let payload: Data
     let checksumIsValid: Bool
@@ -134,6 +156,7 @@ private func parseOggPages(_ data: Data) throws -> [ParsedOggPage] {
         let storedChecksum = readUInt32LE(pageData, at: 22)
         pages.append(ParsedOggPage(
             headerType: pageData[5],
+            granulePosition: readUInt64LE(pageData, at: 6),
             sequence: readUInt32LE(pageData, at: 18),
             payload: pageData.subdata(in: (27 + segmentCount)..<pageSize),
             checksumIsValid: storedChecksum == independentOggCRC(checksumInput)
@@ -212,6 +235,12 @@ private func makeSilentPCM16WAV(sampleRate: UInt32, frameCount: UInt32) -> Data 
 private func readUInt32LE(_ data: Data, at offset: Int) -> UInt32 {
     (0..<4).reduce(UInt32(0)) { partial, index in
         partial | (UInt32(data[offset + index]) << UInt32(index * 8))
+    }
+}
+
+private func readUInt64LE(_ data: Data, at offset: Int) -> UInt64 {
+    (0..<8).reduce(UInt64(0)) { partial, index in
+        partial | (UInt64(data[offset + index]) << UInt64(index * 8))
     }
 }
 
