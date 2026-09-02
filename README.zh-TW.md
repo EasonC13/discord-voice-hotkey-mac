@@ -29,7 +29,7 @@
 
 自動送出功能預設開啟。如果只想先貼上附件、不立即送出，可在選單列取消勾選 **Send Automatically After Paste (0.2s)**。為避免誤送，若 0.2 秒內焦點曾離開原本的 App，程式就不會按下 Enter。
 
-App 會以 `.m4a` 容器錄製原生 AAC 音訊，Discord 可直接播放與上傳。
+App 先透過 AVFoundation 錄音，再使用 macOS 內建的 `afconvert` 與本機 Ogg 封裝器，送出 **`.ogg` 容器中的 Opus 音訊**。因此 Discord 與支援 Hermes 的 Agent 會收到明確的 `audio/ogg` 附件，不需要安裝 Homebrew 或 FFmpeg。若 macOS 無法完成轉換，App 會保留並送出原始 `.m4a`，避免語音遺失。
 
 ### 自訂快捷鍵
 
@@ -98,7 +98,8 @@ scripts/smoke-test-app.sh
 
 - **AppKit** 選單列應用程式
 - **Carbon** 全域快捷鍵註冊
-- **AVFoundation** 原生 M4A/AAC 錄音
+- **AVFoundation** 原生錄音，透過內建 `afconvert` 轉為 Opus
+- **本機 Ogg 封裝器**：不使用 FFmpeg 或網路服務即可封裝 Opus packets
 - **NSPasteboard** 剪貼簿保存、檔案貼上與恢復
 - **Core Graphics** 在取得輔助使用授權後模擬 `Command + V`
 - **Swift Package Manager** 建置與 XCTest 測試套件

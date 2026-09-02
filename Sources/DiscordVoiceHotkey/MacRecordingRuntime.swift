@@ -156,7 +156,7 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
             try? FileManager.default.removeItem(at: url)
             return nil
         }
-        return url
+        return RecordingOutputFinalizer().finalize(source: url)
     }
 
     func activateApplication(pid: Int32?) {
