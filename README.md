@@ -29,7 +29,7 @@ No Homebrew, Hammerspoon, FFmpeg, or background terminal process is required.
 
 Automatic sending is enabled by default. Turn **Send Automatically After Paste (0.2s)** off from the menu bar if you only want to stage the attachment. For safety, the app skips Enter if focus moved away from the original target app during the 0.2-second interval.
 
-The app records native AAC audio in an `.m4a` container. Discord can play and upload this format directly.
+The app records through AVFoundation, then uses macOS's built-in `afconvert` and a local Ogg muxer to send **Opus audio in an `.ogg` container**. This gives Discord and Hermes-compatible agents an unambiguous `audio/ogg` attachment without requiring Homebrew or FFmpeg. If macOS cannot complete the conversion, the original `.m4a` recording is preserved and sent instead of losing the message.
 
 ### Custom shortcut
 
@@ -98,7 +98,8 @@ The build script:
 
 - **AppKit** menu bar application
 - **Carbon** global hotkey registration
-- **AVFoundation** native M4A/AAC recording
+- **AVFoundation** native recording, converted with built-in `afconvert` to Opus
+- **Local Ogg muxer** wraps Opus packets without FFmpeg or network services
 - **NSPasteboard** clipboard snapshot, file paste, and restoration
 - **Core Graphics** synthetic `Command + V` after Accessibility authorization
 - **Swift Package Manager** build and XCTest suite
