@@ -4,3 +4,5 @@ node_modules/
 *.dmg
 .DS_Store
 discord-voice-hotkey-mac.zip
+__pycache__/
+*.py[cod]
