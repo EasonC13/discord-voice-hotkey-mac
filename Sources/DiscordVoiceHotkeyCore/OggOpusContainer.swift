@@ -215,9 +215,10 @@ public struct MacOggOpusConverter {
         let errorPipe = Pipe()
         process.standardError = errorPipe
         try process.run()
+        let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
         let errorText = String(
-            data: errorPipe.fileHandleForReading.readDataToEndOfFile(),
+            data: errorData,
             encoding: .utf8
         )?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard process.terminationStatus == 0 else {
@@ -257,7 +258,7 @@ public enum OggOpusContainer {
         output.append(makePage(
             payload: opusHead,
             headerType: 0x02,
-            granulePosition: UInt64.max,
+            granulePosition: 0,
             serialNumber: serialNumber,
             sequence: sequence
         ))
@@ -271,7 +272,7 @@ public enum OggOpusContainer {
         output.append(makePage(
             payload: opusTags,
             headerType: 0,
-            granulePosition: UInt64.max,
+            granulePosition: 0,
             serialNumber: serialNumber,
             sequence: sequence
         ))
