@@ -45,6 +45,8 @@ App 先透過 AVFoundation 錄音，再使用 macOS 內建的 `afconvert` 與本
 
 這個 App 負責錄音並送出語音檔案。[Hermes Agent](https://github.com/NousResearch/hermes-agent) 可以自動轉錄 Discord 語音附件，並將逐字稿視為一般訊息交給 Agent 處理。
 
+若要了解維護者實測的低延遲流程，包括 fast provisional STT、背景 `large-v3` 核實、語意一致時靜默、只在實質差異時修正、副作用安全與可重用 Hermes skill，請參考 **[優化 Hermes Agent 語音控制](docs/hermes-agent-dual-pass-stt.zh-TW.md)**。
+
 ### 推薦的語音轉文字引擎
 
 我們首選並推薦使用本機的 **faster-whisper**。語音會留在執行 Hermes 的主機上，不需要 API key，也不必交給雲端轉錄服務。這也是本專案維護者目前實際採用的設定，使用 `large-v3` 模型來提升繁體中文、英文及中英混合語音的辨識準確度：

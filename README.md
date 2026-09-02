@@ -45,6 +45,8 @@ Recordings shorter than 0.5 seconds are cancelled. Temporary recordings are remo
 
 This app records and sends the audio file. [Hermes Agent](https://github.com/NousResearch/hermes-agent) can then automatically transcribe Discord voice attachments and treat the transcript as a normal message.
 
+For the maintainer's tested low-latency workflow—fast provisional STT, background `large-v3` verification, silent agreement, material-only correction, side-effect safety, and the reusable Hermes skill—see **[Optimizing Hermes Agent voice control](docs/hermes-agent-dual-pass-stt.md)**.
+
 ### Recommended speech-to-text engine
 
 We recommend **local faster-whisper** first. Audio stays on the machine running Hermes, no API key or cloud transcription service is required, and it is the setup used by this project's maintainers. Our current deployment uses the `large-v3` model for strong Traditional Chinese, English, and mixed-language accuracy:
