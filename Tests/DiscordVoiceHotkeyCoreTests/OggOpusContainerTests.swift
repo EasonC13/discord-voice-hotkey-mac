@@ -40,6 +40,7 @@ final class OggOpusContainerTests: XCTestCase {
         XCTAssertEqual(pages[0].headerType, 0x02)
         XCTAssertEqual(pages[0].granulePosition, 0)
         XCTAssertTrue(pages[0].payload.starts(with: Data("OpusHead".utf8)))
+        XCTAssertEqual(readUInt32LE(pages[0].payload, at: 12), 0)
         XCTAssertEqual(pages[1].granulePosition, 0)
         XCTAssertTrue(pages[1].payload.starts(with: Data("OpusTags".utf8)))
         XCTAssertEqual(pages[2].payload, stream.packets[0])
