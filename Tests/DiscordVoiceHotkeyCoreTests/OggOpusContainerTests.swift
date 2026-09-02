@@ -40,6 +40,7 @@ final class OggOpusContainerTests: XCTestCase {
         XCTAssertEqual(pages[0].headerType, 0x02)
         XCTAssertEqual(pages[0].granulePosition, 0)
         XCTAssertTrue(pages[0].payload.starts(with: Data("OpusHead".utf8)))
+        XCTAssertEqual(readUInt32LE(pages[0].payload, at: 12), 0)
         XCTAssertEqual(pages[1].granulePosition, 0)
         XCTAssertTrue(pages[1].payload.starts(with: Data("OpusTags".utf8)))
         XCTAssertEqual(pages[2].payload, stream.packets[0])
@@ -127,6 +128,28 @@ final class OggOpusContainerTests: XCTestCase {
         XCTAssertTrue(ogg.starts(with: Data("OggS".utf8)))
         XCTAssertTrue(try parseOggPages(ogg).allSatisfy(\.checksumIsValid))
         XCTAssertFalse(FileManager.default.fileExists(atPath: output.appendingPathExtension("caf").path))
+    }
+
+    func testFiveMinuteConversionBenchmarkCompletesComfortablyWithinTimeout() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let input = directory.appendingPathComponent("five-minutes.wav")
+        let output = directory.appendingPathComponent("five-minutes.ogg")
+        try makeSilentPCM16WAV(
+            sampleRate: 48_000,
+            frameCount: 48_000 * 60 * 5
+        ).write(to: input)
+
+        let started = Date()
+        try MacOggOpusConverter().convert(source: input, destination: output)
+        let elapsed = Date().timeIntervalSince(started)
+        print(String(format: "FIVE_MINUTE_OGG_CONVERSION_SECONDS=%.3f", elapsed))
+
+        XCTAssertLessThan(elapsed, 15)
+        XCTAssertTrue(try Data(contentsOf: output).starts(with: Data("OggS".utf8)))
     }
 }
 

@@ -202,27 +202,20 @@ public struct MacOggOpusConverter {
             .appendingPathComponent(".\(UUID().uuidString).opus.caf")
         defer { try? FileManager.default.removeItem(at: temporaryCAF) }
 
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/afconvert")
-        process.arguments = [
-            source.path,
-            temporaryCAF.path,
-            "-f", "caff",
-            "-d", "opus@48000",
-            "-c", "1",
-            "-b", "64000",
-        ]
-        let errorPipe = Pipe()
-        process.standardError = errorPipe
-        try process.run()
-        let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        let errorText = String(
-            data: errorData,
-            encoding: .utf8
-        )?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard process.terminationStatus == 0 else {
-            throw MacOggOpusConverterError.afconvertFailed(errorText)
+        do {
+            try TimedProcessRunner(timeout: 60).run(
+                executable: URL(fileURLWithPath: "/usr/bin/afconvert"),
+                arguments: [
+                    source.path,
+                    temporaryCAF.path,
+                    "-f", "caff",
+                    "-d", "opus@48000",
+                    "-c", "1",
+                    "-b", "64000",
+                ]
+            )
+        } catch {
+            throw MacOggOpusConverterError.afconvertFailed(error.localizedDescription)
         }
         guard FileManager.default.fileExists(atPath: temporaryCAF.path) else {
             throw MacOggOpusConverterError.missingOutput
@@ -251,8 +244,10 @@ public enum OggOpusContainer {
         opusHead.append(1)
         opusHead.append(stream.channelCount)
         opusHead.appendUInt16LE(stream.preSkip)
-        let inputRate = UInt32(clamping: Int(stream.sampleRate.rounded()))
-        opusHead.appendUInt32LE(inputRate)
+        // RFC 7845 defines this as the pre-encoding input rate. The CAF is the
+        // 48 kHz afconvert output, not the microphone's original 44.1 kHz
+        // stream, so use the permitted "unspecified" value instead of lying.
+        opusHead.appendUInt32LE(0)
         opusHead.appendUInt16LE(0)
         opusHead.append(0)
         output.append(makePage(
