@@ -172,6 +172,62 @@ public enum OggOpusContainerError: LocalizedError {
     }
 }
 
+public enum MacOggOpusConverterError: LocalizedError {
+    case afconvertFailed(String)
+    case missingOutput
+
+    public var errorDescription: String? {
+        switch self {
+        case .afconvertFailed(let detail):
+            return detail.isEmpty
+                ? "macOS could not encode the recording as Opus."
+                : "macOS could not encode the recording as Opus: \(detail)"
+        case .missingOutput:
+            return "macOS reported a successful Opus conversion but produced no file."
+        }
+    }
+}
+
+public struct MacOggOpusConverter {
+    public init() {}
+
+    public func convert(source: URL, destination: URL) throws {
+        let temporaryCAF = destination
+            .deletingLastPathComponent()
+            .appendingPathComponent(".\(UUID().uuidString).opus.caf")
+        defer { try? FileManager.default.removeItem(at: temporaryCAF) }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/afconvert")
+        process.arguments = [
+            source.path,
+            temporaryCAF.path,
+            "-f", "caff",
+            "-d", "opus@48000",
+            "-c", "1",
+            "-b", "64000",
+        ]
+        let errorPipe = Pipe()
+        process.standardError = errorPipe
+        try process.run()
+        process.waitUntilExit()
+        let errorText = String(
+            data: errorPipe.fileHandleForReading.readDataToEndOfFile(),
+            encoding: .utf8
+        )?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard process.terminationStatus == 0 else {
+            throw MacOggOpusConverterError.afconvertFailed(errorText)
+        }
+        guard FileManager.default.fileExists(atPath: temporaryCAF.path) else {
+            throw MacOggOpusConverterError.missingOutput
+        }
+
+        let stream = try CAFPacketStream.parse(Data(contentsOf: temporaryCAF))
+        let ogg = try OggOpusContainer.make(stream: stream)
+        try ogg.write(to: destination, options: .atomic)
+    }
+}
+
 public enum OggOpusContainer {
     public static func make(
         stream: CAFPacketStream,
