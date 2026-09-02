@@ -4,17 +4,20 @@ public struct CAFPacketStream: Equatable {
     public let sampleRate: Double
     public let channelCount: UInt8
     public let preSkip: UInt16
+    public let validFrameCount: UInt64?
     public let packets: [Data]
 
     public init(
         sampleRate: Double,
         channelCount: UInt8,
         preSkip: UInt16,
+        validFrameCount: UInt64? = nil,
         packets: [Data]
     ) {
         self.sampleRate = sampleRate
         self.channelCount = channelCount
         self.preSkip = preSkip
+        self.validFrameCount = validFrameCount
         self.packets = packets
     }
 
@@ -29,6 +32,7 @@ public struct CAFPacketStream: Equatable {
         var description: AudioDescription?
         var packetSizes: [Int]?
         var preSkip: UInt16 = 0
+        var validFrameCount: UInt64?
         var audioBytes: Data?
 
         while reader.remaining >= 12 {
@@ -58,7 +62,7 @@ public struct CAFPacketStream: Equatable {
             case "pakt":
                 var tableReader = BinaryReader(body)
                 let packetCount = try tableReader.readUInt64BE()
-                _ = try tableReader.readUInt64BE()
+                validFrameCount = try tableReader.readUInt64BE()
                 let primingFrames = try tableReader.readUInt32BE()
                 _ = try tableReader.readUInt32BE()
                 guard packetCount <= UInt64(Int.max) else {
@@ -125,6 +129,7 @@ public struct CAFPacketStream: Equatable {
             sampleRate: description.sampleRate,
             channelCount: UInt8(description.channelCount),
             preSkip: preSkip,
+            validFrameCount: validFrameCount,
             packets: packets
         )
     }
@@ -275,7 +280,18 @@ public enum OggOpusContainer {
         var granulePosition: UInt64 = 0
         for (index, packet) in stream.packets.enumerated() {
             let samples = try opusSampleCount(at48KHz: packet)
+            let previousGranule = granulePosition
             granulePosition += UInt64(samples)
+            if index == stream.packets.count - 1,
+               let validFrameCount = stream.validFrameCount,
+               stream.sampleRate.isFinite,
+               stream.sampleRate > 0 {
+                let scaledValidFrames = UInt64(
+                    (Double(validFrameCount) * 48_000 / stream.sampleRate).rounded()
+                )
+                let exactEnd = UInt64(stream.preSkip) + scaledValidFrames
+                granulePosition = max(previousGranule, min(granulePosition, exactEnd))
+            }
             output.append(makePage(
                 payload: packet,
                 headerType: index == stream.packets.count - 1 ? 0x04 : 0,
