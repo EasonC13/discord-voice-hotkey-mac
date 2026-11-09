@@ -7,7 +7,6 @@ public enum RecordingSessionError: LocalizedError, Equatable {
         switch self {
         case .noUsableAudio:
             return "No usable audio was recorded."
-
         }
     }
 }
@@ -44,7 +43,6 @@ public final class RecordingSessionMachine {
     private let runtime: RecordingSessionRuntime
     private var context: RecordingContext?
 
-
     public var isRecording: Bool { context != nil }
 
     public init(runtime: RecordingSessionRuntime) {
@@ -53,13 +51,11 @@ public final class RecordingSessionMachine {
 
     public func shutdown() {
         context = nil
-
         runtime.shutdownRecordingStorage()
     }
 
     public func toggle(now: Date = Date()) throws {
         guard let activeContext = context else {
-
             let newContext = runtime.captureContext(at: now)
             do {
                 try runtime.startRecording()

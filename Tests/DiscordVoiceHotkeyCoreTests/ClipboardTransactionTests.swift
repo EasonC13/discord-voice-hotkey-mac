@@ -2,6 +2,30 @@ import XCTest
 @testable import DiscordVoiceHotkeyCore
 
 final class ClipboardTransactionTests: XCTestCase {
+    func testThreePasteBurstWithEveryCallbackOrderRestoresExactlyOnce() {
+        let orders = [["a", "b", "c"], ["a", "c", "b"], ["b", "a", "c"],
+                      ["b", "c", "a"], ["c", "a", "b"], ["c", "b", "a"]]
+        for order in orders {
+            var clipboard = ClipboardTransaction<String>()
+            clipboard.preparePaste(snapshot: "original", changeCount: 1)
+            clipboard.didWrite(token: "a", changeCount: 2)
+            clipboard.preparePaste(snapshot: "audio-a", changeCount: 2)
+            clipboard.didWrite(token: "b", changeCount: 3)
+            clipboard.preparePaste(snapshot: "audio-b", changeCount: 3)
+            clipboard.didWrite(token: "c", changeCount: 4)
+            var count = 4
+            var restored: [String] = []
+            for token in order {
+                if let snapshot = clipboard.restore(token: token, changeCount: count) {
+                    restored.append(snapshot)
+                    count += 1
+                }
+            }
+            XCTAssertEqual(restored, ["original"], "callback order: \(order)")
+            XCTAssertNil(clipboard.ownerToken)
+        }
+    }
+
     func testOverlappingPastesRestoreOriginalNotTemporaryAudio() {
         var clipboard = ClipboardTransaction<String>()
         clipboard.preparePaste(snapshot: "original", changeCount: 1)
