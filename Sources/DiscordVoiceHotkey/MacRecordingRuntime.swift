@@ -37,12 +37,10 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
     private struct ClipboardSnapshot {
         let items: [[NSPasteboard.PasteboardType: Data]]
         let wasEmpty: Bool
-        let originalChangeCount: Int
     }
 
     private var recorder: AVAudioRecorder?
-    private var snapshots: [String: ClipboardSnapshot] = [:]
-    private var pasteChangeCounts: [String: Int] = [:]
+    private var clipboard = ClipboardTransaction<ClipboardSnapshot>()
     private var activeClipboardToken: String?
     private var lastExternalApplicationPID: Int32?
     private var pasteTargetApplicationPID: Int32?
@@ -92,7 +90,6 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
 
     func captureContext(at date: Date) -> RecordingContext {
         let token = UUID().uuidString
-        snapshots[token] = captureClipboard()
         activeClipboardToken = token
         let frontmost = NSWorkspace.shared.frontmostApplication
         let pid = frontmost?.processIdentifier == ProcessInfo.processInfo.processIdentifier
@@ -175,23 +172,16 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
 
         Thread.sleep(forTimeInterval: 0.2)
         let pasteboard = NSPasteboard.general
-        if let token = activeClipboardToken,
-           let snapshot = snapshots[token],
-           ClipboardSnapshotPolicy.shouldRefreshSnapshot(
-               originalChangeCount: snapshot.originalChangeCount,
-               currentChangeCount: pasteboard.changeCount
-           ) {
-            snapshots[token] = captureClipboard()
-        }
+        clipboard.preparePaste(snapshot: captureClipboard(), changeCount: pasteboard.changeCount)
         pasteboard.clearContents()
         if let activeClipboardToken {
-            pasteChangeCounts[activeClipboardToken] = pasteboard.changeCount
+            clipboard.didWrite(token: activeClipboardToken, changeCount: pasteboard.changeCount)
         }
         guard pasteboard.writeObjects([url as NSURL]) else {
             throw RuntimeError.pasteboardWrite
         }
         if let activeClipboardToken {
-            pasteChangeCounts[activeClipboardToken] = pasteboard.changeCount
+            clipboard.didWrite(token: activeClipboardToken, changeCount: pasteboard.changeCount)
         }
 
         guard let source = CGEventSource(stateID: .combinedSessionState),
@@ -253,20 +243,20 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
     func shutdownRecordingStorage() {
         clearPendingAutomaticSend()
         cancelActiveRecording()
-        for token in Array(snapshots.keys) {
+        if let token = clipboard.ownerToken {
             restoreClipboardNow(token: token)
         }
+        activeClipboardToken = nil
         removeAllRecordings()
     }
 
     func restoreClipboardNow(token: String) {
-        restoreClipboard(token: token, onlyIfChangeCountIs: pasteChangeCounts[token])
+        restoreClipboard(token: token)
     }
 
     func restoreClipboardLater(token: String, completion: @escaping () -> Void) {
-        let expectedChangeCount = pasteChangeCounts[token]
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
-            self?.restoreClipboard(token: token, onlyIfChangeCountIs: expectedChangeCount)
+            self?.restoreClipboard(token: token)
             completion()
         }
     }
@@ -292,8 +282,7 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
         guard let pasteboardItems = pasteboard.pasteboardItems, !pasteboardItems.isEmpty else {
             return ClipboardSnapshot(
                 items: [],
-                wasEmpty: true,
-                originalChangeCount: pasteboard.changeCount
+                wasEmpty: true
             )
         }
 
@@ -304,24 +293,15 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
         }
         return ClipboardSnapshot(
             items: items,
-            wasEmpty: false,
-            originalChangeCount: pasteboard.changeCount
+            wasEmpty: false
         )
     }
 
-    private func restoreClipboard(token: String, onlyIfChangeCountIs expected: Int?) {
-        guard let snapshot = snapshots.removeValue(forKey: token) else { return }
-        pasteChangeCounts.removeValue(forKey: token)
+    private func restoreClipboard(token: String) {
         if activeClipboardToken == token { activeClipboardToken = nil }
 
         let pasteboard = NSPasteboard.general
-        let safeChangeCount = ClipboardRestorePolicy.expectedChangeCount(
-            originalChangeCount: snapshot.originalChangeCount,
-            applicationPasteChangeCount: expected
-        )
-        if pasteboard.changeCount != safeChangeCount {
-            return
-        }
+        guard let snapshot = clipboard.restore(token: token, changeCount: pasteboard.changeCount) else { return }
 
         pasteboard.clearContents()
         guard !snapshot.wasEmpty else { return }
