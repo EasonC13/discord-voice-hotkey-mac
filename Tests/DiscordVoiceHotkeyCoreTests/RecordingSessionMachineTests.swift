@@ -70,22 +70,19 @@ final class RecordingSessionMachineTests: XCTestCase {
         ])
     }
 
-    func testNewRecordingIsBlockedUntilClipboardRestorationCompletes() throws {
+    func testNewRecordingStartsBeforeClipboardRestorationCompletes() throws {
         let runtime = MockRuntime()
         let machine = RecordingSessionMachine(runtime: runtime)
         let started = Date(timeIntervalSince1970: 100)
 
         try machine.toggle(now: started)
         try machine.toggle(now: started.addingTimeInterval(2))
-        let eventsAfterPaste = runtime.events
-
-        XCTAssertThrowsError(try machine.toggle(now: started.addingTimeInterval(4))) { error in
-            XCTAssertEqual(error as? RecordingSessionError, .clipboardRestorationPending)
-        }
-        XCTAssertEqual(runtime.events, eventsAfterPaste)
-
+        try machine.toggle(now: started.addingTimeInterval(2.01))
+        XCTAssertTrue(machine.isRecording)
         runtime.completeRestore()
-        try machine.toggle(now: started.addingTimeInterval(4))
+        XCTAssertTrue(machine.isRecording)
+        try machine.toggle(now: started.addingTimeInterval(3))
+        try machine.toggle(now: started.addingTimeInterval(3.01))
         XCTAssertTrue(machine.isRecording)
         XCTAssertEqual(Array(runtime.events.suffix(2)), ["capture", "start"])
     }
