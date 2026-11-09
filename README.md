@@ -37,7 +37,7 @@ Open the menu bar icon and choose **Change Shortcut…**, then press any combina
 
 ### Clipboard behavior
 
-The app snapshots the clipboard before recording. After pasting the audio file, it restores the previous clipboard approximately 1.5 seconds later. If you copy something new during that window, the newer clipboard is preserved instead of being overwritten.
+Recording can start again immediately while a previous clipboard restore is pending. The app snapshots the clipboard immediately before pasting audio, then restores it approximately 1.5 seconds after the latest paste. Consecutive pastes share the original pre-burst clipboard, never a temporary audio attachment. If you copy something new during recording or the restore window, your newer clipboard takes priority. Cancelling a new recording does not prematurely restore a previous paste.
 
 Recordings shorter than 0.5 seconds are cancelled. Temporary recordings are removed after 30 minutes.
 

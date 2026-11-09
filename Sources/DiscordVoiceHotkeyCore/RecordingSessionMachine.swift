@@ -2,14 +2,12 @@ import Foundation
 
 public enum RecordingSessionError: LocalizedError, Equatable {
     case noUsableAudio
-    case clipboardRestorationPending
 
     public var errorDescription: String? {
         switch self {
         case .noUsableAudio:
             return "No usable audio was recorded."
-        case .clipboardRestorationPending:
-            return "Please wait a moment for the clipboard to be restored."
+
         }
     }
 }
@@ -45,7 +43,7 @@ public protocol RecordingSessionRuntime: AnyObject {
 public final class RecordingSessionMachine {
     private let runtime: RecordingSessionRuntime
     private var context: RecordingContext?
-    private var isRestoringClipboard = false
+
 
     public var isRecording: Bool { context != nil }
 
@@ -55,15 +53,13 @@ public final class RecordingSessionMachine {
 
     public func shutdown() {
         context = nil
-        isRestoringClipboard = false
+
         runtime.shutdownRecordingStorage()
     }
 
     public func toggle(now: Date = Date()) throws {
         guard let activeContext = context else {
-            if isRestoringClipboard {
-                throw RecordingSessionError.clipboardRestorationPending
-            }
+
             let newContext = runtime.captureContext(at: now)
             do {
                 try runtime.startRecording()
@@ -92,10 +88,7 @@ public final class RecordingSessionMachine {
         runtime.activateApplication(pid: activeContext.frontmostApplicationPID)
         do {
             try runtime.pasteAudioFile(outputURL)
-            isRestoringClipboard = true
-            runtime.restoreClipboardLater(token: activeContext.clipboardToken) { [weak self] in
-                self?.isRestoringClipboard = false
-            }
+            runtime.restoreClipboardLater(token: activeContext.clipboardToken) {}
         } catch {
             runtime.deleteRecording(at: outputURL)
             runtime.restoreClipboardNow(token: activeContext.clipboardToken)
