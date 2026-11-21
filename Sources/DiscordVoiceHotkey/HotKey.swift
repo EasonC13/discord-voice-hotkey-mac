@@ -74,26 +74,39 @@ final class GlobalHotKey {
 
     private var hotKeyRef: EventHotKeyRef?
     private var handlerRef: EventHandlerRef?
-    private let callback: () -> Void
+    private let callback: @MainActor () -> Void
+    private let id: UInt32
+    private var pressLatch = HotKeyPressLatch()
+    private static var nextID: UInt32 = 0
+    private static let signature: OSType = 0x4456484B // DVHK
 
-    init(configuration: HotKeyConfiguration, callback: @escaping () -> Void) throws {
+    init(configuration: HotKeyConfiguration, callback: @escaping @MainActor () -> Void) throws {
         self.callback = callback
+        Self.nextID += 1
+        id = Self.nextID
 
-        var eventType = EventTypeSpec(
-            eventClass: OSType(kEventClassKeyboard),
-            eventKind: UInt32(kEventHotKeyPressed)
-        )
+        let eventTypes = [kEventHotKeyPressed, kEventHotKeyReleased].map {
+            EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32($0))
+        }
         let pointer = Unmanaged.passUnretained(self).toOpaque()
         let handlerStatus = InstallEventHandler(
             GetApplicationEventTarget(),
-            { _, _, userData in
-                guard let userData else { return OSStatus(eventNotHandledErr) }
+            { _, event, userData in
+                guard let event, let userData else { return OSStatus(eventNotHandledErr) }
                 let hotKey = Unmanaged<GlobalHotKey>.fromOpaque(userData).takeUnretainedValue()
-                DispatchQueue.main.async { hotKey.callback() }
+                var identifier = EventHotKeyID()
+                guard GetEventParameter(event, OSType(kEventParamDirectObject), OSType(typeEventHotKeyID),
+                                        nil, MemoryLayout<EventHotKeyID>.size, nil, &identifier) == noErr,
+                      identifier.signature == GlobalHotKey.signature, identifier.id == hotKey.id else {
+                    return OSStatus(eventNotHandledErr)
+                }
+                if hotKey.pressLatch.receive(isPressed: GetEventKind(event) == UInt32(kEventHotKeyPressed)) {
+                    DispatchQueue.main.async { [weak hotKey] in hotKey?.callback() }
+                }
                 return noErr
             },
-            1,
-            &eventType,
+            UInt32(eventTypes.count),
+            eventTypes,
             pointer,
             &handlerRef
         )
@@ -101,7 +114,7 @@ final class GlobalHotKey {
             throw RegistrationError.installHandler(handlerStatus)
         }
 
-        let identifier = EventHotKeyID(signature: OSType(0x4456484B), id: 1) // DVHK
+        let identifier = EventHotKeyID(signature: Self.signature, id: id)
         let registerStatus = RegisterEventHotKey(
             configuration.keyCode,
             configuration.carbonModifiers,
@@ -112,6 +125,7 @@ final class GlobalHotKey {
         )
         guard registerStatus == noErr else {
             if let handlerRef { RemoveEventHandler(handlerRef) }
+            handlerRef = nil
             throw RegistrationError.register(registerStatus)
         }
     }

@@ -2,8 +2,9 @@ import Foundation
 import XCTest
 @testable import DiscordVoiceHotkeyCore
 
+@MainActor
 final class RecordingSessionMachineTests: XCTestCase {
-    func testFirstToggleCapturesContextAndStartsRecording() throws {
+    func testFirstToggleCapturesContextAndStartsRecording() async throws {
         let runtime = MockRuntime()
         let machine = RecordingSessionMachine(runtime: runtime)
         let now = Date(timeIntervalSince1970: 100)
@@ -14,7 +15,7 @@ final class RecordingSessionMachineTests: XCTestCase {
         XCTAssertEqual(runtime.events, ["capture", "start"])
     }
 
-    func testSecondTogglePastesFinishedAudioAndSchedulesClipboardRestore() throws {
+    func testSecondTogglePastesFinishedAudioAndSchedulesClipboardRestore() async throws {
         let runtime = MockRuntime()
         let machine = RecordingSessionMachine(runtime: runtime)
         let started = Date(timeIntervalSince1970: 100)
@@ -33,7 +34,7 @@ final class RecordingSessionMachineTests: XCTestCase {
         ])
     }
 
-    func testRecordingShorterThanHalfSecondCancelsWithoutPasting() throws {
+    func testRecordingShorterThanHalfSecondCancelsWithoutPasting() async throws {
         let runtime = MockRuntime()
         let machine = RecordingSessionMachine(runtime: runtime)
         let started = Date(timeIntervalSince1970: 100)
@@ -50,7 +51,7 @@ final class RecordingSessionMachineTests: XCTestCase {
         ])
     }
 
-    func testMissingOutputThrowsAndRestoresClipboardWithoutPasting() throws {
+    func testMissingOutputThrowsAndRestoresClipboardWithoutPasting() async throws {
         let runtime = MockRuntime()
         runtime.outputURL = nil
         let machine = RecordingSessionMachine(runtime: runtime)
@@ -70,7 +71,7 @@ final class RecordingSessionMachineTests: XCTestCase {
         ])
     }
 
-    func testNewRecordingStartsBeforeClipboardRestorationCompletes() throws {
+    func testNewRecordingStartsBeforeClipboardRestorationCompletes() async throws {
         let runtime = MockRuntime()
         let machine = RecordingSessionMachine(runtime: runtime)
         let started = Date(timeIntervalSince1970: 100)
@@ -87,7 +88,7 @@ final class RecordingSessionMachineTests: XCTestCase {
         XCTAssertEqual(Array(runtime.events.suffix(2)), ["capture", "start"])
     }
 
-    func testPasteFailureDeletesOutputBeforeRestoringClipboard() throws {
+    func testPasteFailureDeletesOutputBeforeRestoringClipboard() async throws {
         let runtime = MockRuntime()
         runtime.pasteError = MockFailure.paste
         let machine = RecordingSessionMachine(runtime: runtime)
@@ -107,7 +108,7 @@ final class RecordingSessionMachineTests: XCTestCase {
         ])
     }
 
-    func testShutdownClearsActiveAndCachedRecordings() throws {
+    func testShutdownClearsActiveAndCachedRecordings() async throws {
         let runtime = MockRuntime()
         let machine = RecordingSessionMachine(runtime: runtime)
 

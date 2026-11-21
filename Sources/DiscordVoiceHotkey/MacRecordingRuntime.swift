@@ -48,6 +48,7 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
     private var pendingAutomaticSendID: UUID?
     private var pendingAutomaticSendTargetPID: Int32?
     private var automaticSendFocusWasInterrupted = false
+    private(set) var applicationActivationRevision = UUID()
 
     override init() {
         super.init()
@@ -108,7 +109,7 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
         let directory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("DiscordVoiceHotkey", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let filename = "voice-\(Self.timestamp()).m4a"
+        let filename = "voice-\(Self.timestamp())-\(UUID()).m4a"
         let url = directory.appendingPathComponent(filename)
 
         let settings: [String: Any] = [
@@ -134,6 +135,14 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
     }
 
     func stopRecording(cancel: Bool) -> URL? {
+        finishRecording(cancel: cancel).map { RecordingOutputFinalizer().finalize(source: $0) }
+    }
+
+    func stopTranscriptionRecording(cancel: Bool) -> URL? {
+        finishRecording(cancel: cancel)
+    }
+
+    private func finishRecording(cancel: Bool) -> URL? {
         guard let recorder else { return nil }
         let url = recorder.url
         recorder.stop()
@@ -153,7 +162,7 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
             try? FileManager.default.removeItem(at: url)
             return nil
         }
-        return RecordingOutputFinalizer().finalize(source: url)
+        return url
     }
 
     func activateApplication(pid: Int32?) {
@@ -234,6 +243,46 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
         pendingAutomaticSendID = nil
         pendingAutomaticSendTargetPID = nil
         automaticSendFocusWasInterrupted = false
+    }
+
+    func pasteTranscript(_ text: String, pid: Int32, token: UUID, stillSafe: () -> Bool) -> Bool {
+        guard let events = transcriptKeyEvents(key: 9, flags: .maskCommand), stillSafe() else { return false }
+        let token = token.uuidString
+        let board = NSPasteboard.general
+        let initialCount = board.changeCount
+        clipboard.preparePaste(snapshot: captureClipboard(), changeCount: initialCount)
+        guard stillSafe(), board.changeCount == initialCount else { return false }
+        clearPendingAutomaticSend()
+        board.clearContents()
+        clipboard.didWrite(token: token, changeCount: board.changeCount)
+        guard board.setString(text, forType: .string) else {
+            restoreClipboardNow(token: token)
+            return false
+        }
+        clipboard.didWrite(token: token, changeCount: board.changeCount)
+        guard stillSafe(), clipboard.owns(token: token, changeCount: board.changeCount) else {
+            restoreClipboardNow(token: token)
+            return false
+        }
+        for event in events { event.postToPid(pid) }
+        restoreClipboardLater(token: token) {}
+        return true
+    }
+
+    func sendTranscript(pid: Int32, token: UUID, stillSafe: () -> Bool) -> Bool {
+        guard let events = transcriptKeyEvents(key: 36, flags: []), stillSafe(),
+              clipboard.owns(token: token.uuidString, changeCount: NSPasteboard.general.changeCount) else { return false }
+        for event in events { event.postToPid(pid) }
+        return true
+    }
+
+    private func transcriptKeyEvents(key: CGKeyCode, flags: CGEventFlags) -> [CGEvent]? {
+        guard let source = CGEventSource(stateID: .privateState),
+              let down = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: true),
+              let up = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: false) else { return nil }
+        down.flags = flags
+        up.flags = flags
+        return [down, up]
     }
 
     func deleteRecording(at url: URL) {
@@ -321,6 +370,7 @@ final class MacRecordingRuntime: NSObject, RecordingSessionRuntime {
     }
 
     @objc private func applicationDidActivate(_ notification: Notification) {
+        applicationActivationRevision = UUID()
         let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
         if pendingAutomaticSendID != nil,
            application?.processIdentifier != pendingAutomaticSendTargetPID {

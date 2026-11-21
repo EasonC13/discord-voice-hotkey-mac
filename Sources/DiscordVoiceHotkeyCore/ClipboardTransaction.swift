@@ -21,6 +21,10 @@ public struct ClipboardTransaction<Snapshot> {
         ownedChangeCount = changeCount
     }
 
+    public func owns(token: String, changeCount: Int) -> Bool {
+        ownerToken == token && ownedChangeCount == changeCount
+    }
+
     /// Old, duplicate, cancelled and failed-start sessions have no authority over
     /// the newest paste. A genuine external copy always wins over restoration.
     public mutating func restore(token: String, changeCount: Int) -> Snapshot? {
