@@ -104,7 +104,7 @@ final class MacTranscriptDelivery: TranscriptDelivery {
         var node = composer
         for _ in 0..<12 {
             guard let parent = element(node, kAXParentAttribute) else { return nil }
-            if attribute(parent, kAXRoleAttribute) as? String == kAXWebAreaRole { return parent }
+            if attribute(parent, kAXRoleAttribute) as? String == "AXWebArea" { return parent }
             node = parent
         }
         return nil

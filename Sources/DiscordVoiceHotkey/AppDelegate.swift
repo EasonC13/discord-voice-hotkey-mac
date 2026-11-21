@@ -115,10 +115,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func toggleRecording() {
-        toggleRecording(mode: .audio)
+        handleRecordingShortcut(.audio)
     }
 
-    private func toggleRecording(mode: RecordingMode) {
+    private func handleRecordingShortcut(_ mode: RecordingMode) {
         do {
             if mode == .transcript { transcriptNotice = nil }
             try machine.toggle(mode: mode)
@@ -221,7 +221,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         transcriptHotKey = try? GlobalHotKey(configuration: HotKeyConfiguration(
             keyCode: TranscriptionShortcut.keyCode, carbonModifiers: TranscriptionShortcut.modifiers,
             displayName: "⌃1"
-        )) { [weak self] in self?.toggleRecording(mode: .transcript) }
+        )) { [weak self] in self?.handleRecordingShortcut(.transcript) }
     }
 
     @objc private func copyRecovery(_ item: NSMenuItem) {

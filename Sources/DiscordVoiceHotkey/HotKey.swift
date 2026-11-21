@@ -105,7 +105,7 @@ final class GlobalHotKey {
                 }
                 return noErr
             },
-            UInt32(eventTypes.count),
+            eventTypes.count,
             eventTypes,
             pointer,
             &handlerRef

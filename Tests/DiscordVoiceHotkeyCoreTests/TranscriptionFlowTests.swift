@@ -43,6 +43,64 @@ final class TranscriptionFlowTests: XCTestCase {
         await runtime.nextDeletion()
         XCTAssertEqual(flow.recoveries.map(\.text), ["recover me"])
     }
+
+    func testUnverifiedTargetNeverPastesAndChangedDraftNeverSends() async throws {
+        for checks in [[false], [true, false], [true, true, false]] {
+            let runtime = TranscriptRuntime()
+            runtime.checks = checks
+            let flow = try await roundTrip(runtime, .success("fixture"))
+            XCTAssertEqual(runtime.pastes, checks.count == 3 ? ["fixture"] : [])
+            XCTAssertEqual(runtime.sentTexts, [])
+            XCTAssertEqual(flow.recoveries.map(\.text), ["fixture"])
+            XCTAssertEqual(runtime.deleted.count, 1)
+        }
+    }
+
+    func testConfirmedPasteSendsOnlyThePastedText() async throws {
+        let runtime = TranscriptRuntime()
+        let flow = try await roundTrip(runtime, .success("  fixture\n"))
+        XCTAssertEqual(runtime.pastes, ["fixture"])
+        XCTAssertEqual(runtime.sentTexts, ["fixture"])
+        XCTAssertTrue(flow.recoveries.isEmpty)
+    }
+
+    func testFailedAndBlankExternalResponsesDoNotPaste() async throws {
+        for response: Result<String, Error> in [.failure(CancellationError()), .success(" \n")] {
+            let runtime = TranscriptRuntime()
+            let flow = try await roundTrip(runtime, response)
+            XCTAssertEqual(flow.status, .failed)
+            XCTAssertTrue(runtime.pastes.isEmpty)
+            XCTAssertTrue(runtime.sentTexts.isEmpty)
+            XCTAssertTrue(flow.recoveries.isEmpty)
+            XCTAssertEqual(flow.pendingCount, 0)
+        }
+    }
+
+    func testUnavailableProviderDoesNotStartRecorder() async throws {
+        let recorder = SharedRecorder()
+        let flow = TranscriptionFlow(provider: nil, delivery: TranscriptRuntime())
+        let machine = RecordingSessionMachine(runtime: recorder, transcription: flow)
+        XCTAssertThrowsError(try machine.toggle(mode: .transcript)) {
+            XCTAssertEqual($0 as? RecordingSessionError, .transcriptionUnavailable)
+        }
+        XCTAssertEqual(recorder.starts, 0)
+        try machine.toggle()
+        try machine.toggle(mode: .transcript)
+        XCTAssertEqual(machine.recordingMode, .audio)
+    }
+
+    private func roundTrip(_ runtime: TranscriptRuntime, _ response: Result<String, Error>) async throws -> TranscriptionFlow {
+        let provider = HeldProvider()
+        let flow = TranscriptionFlow(provider: provider, delivery: runtime, waitForPaste: {})
+        let machine = RecordingSessionMachine(runtime: SharedRecorder(), transcription: flow)
+        let start = Date(timeIntervalSince1970: 100)
+        try machine.toggle(mode: .transcript, now: start)
+        try machine.toggle(mode: .transcript, now: start.addingTimeInterval(2))
+        let call = await provider.next()
+        call.finish(response)
+        await runtime.nextDeletion()
+        return flow
+    }
 }
 
 private actor HeldProvider: TranscriptionProvider {
@@ -74,17 +132,24 @@ private actor HeldProvider: TranscriptionProvider {
 @MainActor
 private final class TranscriptRuntime: TranscriptDelivery {
     var pastes: [String] = []
+    var sentTexts: [String] = []
+    var checks: [Bool] = []
     var deleted: [URL] = []
     private var deletions = 0
     private var waiter: CheckedContinuation<Void, Never>?
 
     func captureTarget() -> TranscriptTarget? { TranscriptTarget(pid: 42, identity: UUID()) }
-    func validate(_ target: TranscriptTarget, expectedText: String) -> Bool { true }
+    func validate(_ target: TranscriptTarget, expectedText: String) -> Bool {
+        checks.isEmpty ? true : checks.removeFirst()
+    }
     func paste(_ text: String, into target: TranscriptTarget, token: UUID) -> Bool {
         pastes.append(text)
         return true
     }
-    func send(to target: TranscriptTarget, token: UUID, expectedText: String) -> Bool { true }
+    func send(to target: TranscriptTarget, token: UUID, expectedText: String) -> Bool {
+        sentTexts.append(expectedText)
+        return true
+    }
     func release(_ target: TranscriptTarget) {}
     func deleteAudio(_ url: URL) {
         deleted.append(url)
@@ -101,10 +166,11 @@ private final class TranscriptRuntime: TranscriptDelivery {
 
 private final class SharedRecorder: RecordingSessionRuntime {
     var audioPastes = 0
+    var starts = 0
     func captureContext(at date: Date) -> RecordingContext {
         RecordingContext(clipboardToken: UUID().uuidString, frontmostApplicationPID: 42, startedAt: date)
     }
-    func startRecording() throws {}
+    func startRecording() throws { starts += 1 }
     func stopRecording(cancel: Bool) -> URL? { cancel ? nil : URL(fileURLWithPath: "/synthetic/\(UUID()).m4a") }
     func activateApplication(pid: Int32?) {}
     func pasteAudioFile(_ url: URL) throws { audioPastes += 1 }
